@@ -1,0 +1,6 @@
+-------------------------------------------------------------------
+Fri Sep 25 00:00:00 UTC 2026 - Notesy maintainers
+
+- Initial 1.0 packaging draft: JavaFX notes, SQLite persistence and
+  desktop reminders. System Java runtime; no vendored dependencies.
+- Release blocked pending approved license, upstream URL, and OBS QA.

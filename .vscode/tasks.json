@@ -1,0 +1,11 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "Notesy: test", "type": "shell", "command": "mvn test", "group": { "kind": "test", "isDefault": true }, "problemMatcher": [] },
+    { "label": "Notesy: run", "type": "shell", "command": "mvn javafx:run", "problemMatcher": [] },
+    { "label": "Notesy: package", "type": "shell", "command": "mvn package", "group": { "kind": "build", "isDefault": true }, "problemMatcher": [] },
+    { "label": "Notesy: native UI test", "type": "shell", "command": "STICKYNOTEFX_UI_TEST=1 xvfb-run -a mvn test", "problemMatcher": [] },
+    { "label": "Notesy: source archive", "type": "shell", "command": "make source-dist", "problemMatcher": [] },
+    { "label": "Notesy: metadata", "type": "shell", "command": "make check-metadata", "problemMatcher": [] }
+  ]
+}

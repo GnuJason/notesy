@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Notesy
+GenericName=Sticky Notes
+Comment=Desktop notes with optional reminders
+Exec=notesy
+Icon=notesy
+Terminal=false
+Categories=Office;
+Keywords=notes;sticky;reminder;timer;
+StartupNotify=false

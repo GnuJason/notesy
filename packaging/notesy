@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+JAVA_HOME="${JAVA_HOME:-/usr/lib64/jvm/java-21-openjdk}"
+JAVAFX_LIB="${JAVAFX_LIB:-/usr/share/java/openjfx}"
+NOTESY_JAR="${NOTESY_JAR:-/usr/share/notesy/notesy.jar}"
+SQLITE_JAR="${SQLITE_JAR:-@LIBDIR@/java/sqlite-jdbc.jar}"
+JAVAFX_NATIVE="${JAVAFX_NATIVE:-@LIBDIR@/openjfx}"
+exec "$JAVA_HOME/bin/java" \
+    -Djava.library.path="$JAVAFX_NATIVE:@LIBDIR@" \
+    -cp "$NOTESY_JAR:$SQLITE_JAR:$JAVAFX_LIB/*" org.stickynotefx.Launcher "$@"
