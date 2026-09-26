@@ -72,7 +72,7 @@ class ReminderSchedulerTest {
         List<String> command = DesktopNotifier.command("<b>$(touch /tmp/nope)</b> & hello\nworld");
         assertEquals("notify-send", command.getFirst());
         assertEquals("--", command.get(3));
-        assertEquals("StickyNote Reminder", command.get(4));
+        assertEquals("Notesy Reminder", command.get(4));
         assertEquals("&lt;b&gt;$(touch /tmp/nope)&lt;/b&gt; &amp; hello world", command.getLast());
         assertEquals("Your note is due.", DesktopNotifier.command("  ").getLast());
         assertEquals(163, DesktopNotifier.command("x".repeat(200)).getLast().length());
