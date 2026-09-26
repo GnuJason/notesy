@@ -118,6 +118,7 @@ public final class StickyNoteController {
 
     public void dispose() {
         autosave.stop();
+        view.disposePlayful();
         view.stage().setOnHidden(null);
         view.stage().hide();
     }

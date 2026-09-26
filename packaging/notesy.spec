@@ -19,7 +19,8 @@ Requires:       libnotify-tools
 %description
 Notesy provides editable desktop notes with persistent placement, colors,
 and optional reminders. It uses the system Java runtime and JavaFX libraries.
-Animated reminder themes are reserved for a later release.
+Optional egg, bomb and toaster reminder visuals are disabled by default and
+do not change reminder scheduling or notification delivery.
 
 %prep
 %autosetup

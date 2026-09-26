@@ -22,6 +22,7 @@ public final class MainWindow {
     private final Stage stage;
     private final ListView<Note> notes = new ListView<>();
     private final Label status = new Label();
+    private final javafx.scene.control.MenuItem preferences = new javafx.scene.control.MenuItem("Preferences...");
 
     public MainWindow(Stage stage, Runnable create, Runnable showAll, LongConsumer open, Runnable quit) {
         this.stage = stage;
@@ -60,7 +61,10 @@ public final class MainWindow {
         status.setWrapText(true);
         status.setPadding(new Insets(8));
         BorderPane root = new BorderPane(notes);
-        root.setTop(new ToolBar(add, openButton, stack, exit));
+        var options = new javafx.scene.control.MenuButton("\u22ef", null, preferences);
+        options.setTooltip(new javafx.scene.control.Tooltip("Options"));
+        options.setAccessibleText("Options");
+        root.setTop(new ToolBar(add, openButton, stack, exit, options));
         root.setBottom(status);
         stage.setScene(new Scene(root, 460, 360));
         stage.setMinWidth(420);
@@ -80,5 +84,6 @@ public final class MainWindow {
     }
 
     public void show() { stage.show(); stage.toFront(); }
+    public void onPreferences(Runnable action) { preferences.setOnAction(event -> action.run()); }
     public void setStatus(String text) { status.setText(text); }
 }

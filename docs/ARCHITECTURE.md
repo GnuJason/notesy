@@ -1,4 +1,4 @@
-# Architecture: v1.0 Foundation
+# Architecture: Stable Reminders And Optional Visuals
 
 ## Boundaries
 
@@ -11,6 +11,7 @@
 | Persistence | `DatabaseProvider`, `NoteRepository` | SQLite schema, parameterized CRUD, conditional reminder clear |
 | Reminders | `ReminderService`, `ReminderScheduler`, `DesktopNotifier` | Calendar presets, due dispatch, notification process and retries |
 | Themes | `ThemeEngine`, `ThemeRegistry` | Empty interface and immutable empty registry only |
+| Playful visuals | `ui.playful` | Opt-in global preferences, fixed-size artwork, finite JavaFX transitions and disposal |
 
 The JavaFX application thread owns note controllers, the manager and reminder-service
 state. A daemon scheduler checks wall-clock due times once a second and dispatches to
@@ -50,8 +51,29 @@ The v1.0 database is unencrypted and never synced over a network.
 
 ## v1.2 Boundary
 
-No `ThemeAnimation` implementation, timelines, or active theme selector exists in
-v1.0. Add the abstract animation lifecycle only when v1.2 starts. Proposed themes:
-egg hatch, fuse countdown and toaster pop. Keep rendering on the JavaFX thread and
-notification deadlines in the reminder service, independent of animation frame rate.
-The current `theme` column reserves storage without committing to asset formats.
+`PlayfulSettingsStore` uses a separate properties file with atomic replacement,
+disabled/NONE defaults and safe handling of invalid profiles. It does not read or
+write the note's reserved `theme` column. `NoteManager` loads settings on startup,
+saves preference changes before applying them to all controllers, and initializes
+new windows with the same global selection. Existing public constructors still work.
+
+`StickyNoteView` owns a mouse-transparent overlay in a 72 x 48 logical-pixel footer
+slot, separate from the editor, drag bar, resize grip and reminder dialog. The slot
+is absent when disabled or idle without a reminder. `EggOverlay`, `BombOverlay` and
+`ToasterOverlay` share a disposable `PlayfulReminderOverlay` lifecycle:
+
+- Scheduled: static artwork and a one-shot wait until near the deadline.
+- Pending: one brief wobble; no continuously running countdown or flashing.
+- Delivered: finite reveal/pop, a short hold, then fade and removal.
+- Cancelled, hidden, disabled or disposed: stop all transitions and callbacks.
+
+The existing `reminderDelivered` callback remains conditional on the note's current
+timestamp and successful database clear. Only then does the view animate. A failed
+notification retains its existing retry behavior; the visual never calls the
+scheduler or notifier. Hidden notes do not replay delivery animations on reopening.
+Rendering failures are caught at the view boundary and remove only the overlay.
+The scheduler, reminder service, note schema, and notification content are unchanged.
+
+All visual state belongs to the JavaFX thread. There are no per-note worker threads
+or global UI listeners. The unused foundation theme registry remains reserved;
+there is no new parallel reminder engine. Preferences are global, not per-note.

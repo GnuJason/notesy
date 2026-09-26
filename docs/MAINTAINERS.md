@@ -28,8 +28,9 @@ installed `notesy` launcher. For development, use `mvn javafx:run`.
 1. Choose the project license with the owner. Add the license text, update the spec
    and AppStream SPDX IDs, add `%license`, and include it in the source archive.
 2. Publish the canonical upstream project and release tarball. Add `URL` and the
-   public `Source0` URL to the spec. Add the homepage, developer identity and real
-   screenshots to AppStream. Confirm the application ID before public release.
+   public `Source0` URL to the spec. Confirm the AppStream homepage and developer
+   identity, publish `docs/screenshots` and validate screenshot URLs online. Confirm
+   the application ID before public release.
 3. Run `mvn verify`, the opt-in native UI tests, and metadata validators.
 4. Run `make source-dist`; copy the contents of `dist/Notesy/` into a package
    created under an authorized OBS home/devel project.
@@ -61,8 +62,10 @@ the system library directory; the application jar itself contains only Java byte
 
 ## Scope Control
 
-No v1.2 git branch is created by the build. Create one only when authorized after
-the v1.0 release gate. Assets must have documented provenance and compatible licenses.
+No v1.2 git branch is created by the build. The opt-in visual implementation is
+not release approval. Vector paths in `ui.playful` are original project artwork;
+PNGs in `docs/screenshots` come from the native UI test. The standard screenshot is
+a side-by-side composition of two UI snapshots. Project licensing still needs approval.
 Do not bundle Java, SQLite JNI binaries, or Maven caches in an OBS source tarball.
 
 ## Local Verification Record
@@ -78,7 +81,13 @@ Do not bundle Java, SQLite JNI binaries, or Maven caches in an OBS source tarbal
    another unresolved C++ runtime symbol in `libglassgtk3.so`. No preload workaround
    is shipped. Reproduce with the installed distribution JDK/OpenJFX in OBS and
    resolve with the OpenJFX package maintainer before an RPM release.
-- Desktop entry and shell syntax validate. AppStream reports a missing homepage
-   warning and missing developer information; strict metadata validation is not passed.
-- No RPM build, real desktop notification delivery, OBS upload, Factory submission,
-   or full KDE/GNOME session test has been completed in this workspace.
+- Local foundation RPM build and installation passed, but the installed launcher
+   reproduced the system OpenJFX `XOpenDisplay` native failure described above.
+- The v1.2 preview is tested with Temurin JDK 25 and Maven JavaFX 21 on the active
+   XWayland display. It covers preference persistence, all overlay modes, finite
+   animations, focus, bounds and actual scheduler-to-notify-send delivery.
+- Desktop entry and relaxed AppStream checks validate. Homepage and screenshot
+   references are now present; developer identity, online image availability and
+   project licensing must be confirmed before distribution.
+- No OBS upload, Factory submission, performance baseline, or full KDE/GNOME
+   session certification has been completed in this workspace.

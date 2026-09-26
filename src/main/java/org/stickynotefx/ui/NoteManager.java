@@ -7,6 +7,9 @@ import javafx.stage.Stage;
 import org.stickynotefx.model.Note;
 import org.stickynotefx.persistence.NoteRepository;
 import org.stickynotefx.reminder.ReminderService;
+import org.stickynotefx.ui.playful.PlayfulPreferencesDialog;
+import org.stickynotefx.ui.playful.PlayfulSettings;
+import org.stickynotefx.ui.playful.PlayfulSettingsStore;
 
 import java.time.Clock;
 import java.util.LinkedHashMap;
@@ -18,11 +21,20 @@ public final class NoteManager implements AutoCloseable {
     private final Map<Long, StickyNoteController> notes = new LinkedHashMap<>();
     private final MainWindow main;
     private final ReminderService reminders;
+    private final PlayfulSettingsStore settingsStore;
+    private PlayfulSettings settings;
     private boolean closed;
 
     public NoteManager(NoteRepository repository, Stage primary) {
+        this(repository, primary, PlayfulSettingsStore.userSettings());
+    }
+
+    public NoteManager(NoteRepository repository, Stage primary, PlayfulSettingsStore settingsStore) {
         this.repository = repository;
+        this.settingsStore = settingsStore;
+        settings = settingsStore.load();
         main = new MainWindow(primary, this::createNote, this::showAll, this::show, this::quit);
+        main.onPreferences(() -> showPreferences(primary));
         reminders = new ReminderService(Clock.systemDefaultZone(), Platform::runLater,
                 id -> notes.containsKey(id) ? notes.get(id).note() : null,
                 this::reminderDelivered, message -> { main.setStatus(message); main.show(); });
@@ -43,6 +55,8 @@ public final class NoteManager implements AutoCloseable {
         StickyNoteController controller = new StickyNoteController(note, this::save);
         notes.put(note.id(), controller);
         var view = controller.view();
+        view.setPlayfulSettings(settings);
+        view.preferencesItem().setOnAction(event -> showPreferences(view.stage()));
         view.addButton().setOnAction(event -> createNote());
         view.managerItem().setOnAction(event -> { refreshList(); main.show(); });
         view.quitItem().setOnAction(event -> quit());
@@ -67,11 +81,28 @@ public final class NoteManager implements AutoCloseable {
         refreshList();
     }
 
-    private void reminderDelivered(long id, long expectedTimestamp) {
+    void reminderDelivered(long id, long expectedTimestamp) {
         StickyNoteController controller = notes.get(id);
         if (controller == null || !Objects.equals(controller.note().reminderTimestamp(), expectedTimestamp)) return;
         controller.flush();
-        if (repository.clearReminder(id, expectedTimestamp)) controller.setReminder(null);
+        if (repository.clearReminder(id, expectedTimestamp)) {
+            controller.setReminder(null);
+            controller.view().reminderFired();
+        }
+    }
+
+    private void showPreferences(Stage owner) {
+        new PlayfulPreferencesDialog(owner, settings, this::setPlayfulSettings).showAndWait();
+    }
+
+    public void setPlayfulSettings(PlayfulSettings next) {
+        try {
+            settingsStore.save(next);
+        } catch (java.io.IOException failure) {
+            throw new java.io.UncheckedIOException(failure);
+        }
+        settings = next;
+        notes.values().forEach(controller -> controller.view().setPlayfulSettings(next));
     }
 
     private void confirmDelete(StickyNoteController controller) {

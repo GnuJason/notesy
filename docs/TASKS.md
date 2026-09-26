@@ -34,19 +34,24 @@ the corresponding local build and test commands.
 - [ ] RELEASE-01: Obtain devel-project review and submit to Factory with an
   authorized maintainer account. A local build does not satisfy this gate.
 
-## v1.2 Deferred Tasks
+## v1.2 Opt-In Visuals
 
-- [ ] THEME-01: Create the authorized v1.2 branch after foundation release.
-- [ ] THEME-02: Define abstract `ThemeAnimation` start/pause/seek/dispose lifecycle
-  and registry factories. Disposing a note must release every timeline/listener.
-- [ ] THEME-03: Implement egg hatch with licensed assets and deadline-based stages.
-- [ ] THEME-04: Implement fuse countdown and a non-disruptive completion animation.
-- [ ] THEME-05: Implement toaster warming and toast pop with licensed assets.
-- [ ] THEME-06: Enable per-note selection and persistence; unknown themes fall back
-  to plain notes without losing content or reminders.
-- [ ] THEME-07: Resynchronize after suspend, reminder edits, cancellation and
-  restoration. Animations must never control or delay reminder delivery.
+- [x] THEME-01: Define NONE/EGG/BOMB/TOASTER, disabled by default, with no changes
+  to scheduling, note storage or notification content. No release branch is created.
+- [x] THEME-02: Implement disposable, mouse-transparent JavaFX footer overlays.
+  Cancel/hide/disable/dispose stops transitions; completed effects hide themselves.
+- [x] THEME-03: Implement original vector egg artwork with crack and note reveal.
+- [x] THEME-04: Implement a cartoon fuse and finite, non-flashing burst effect.
+- [x] THEME-05: Implement original toaster artwork and toast-pop transition.
+- [x] THEME-06: Persist global opt-in settings outside the notes database. Apply
+  immediately to open and future notes; unknown profiles restore safe defaults.
+- [x] THEME-07: Connect pending and successful-delivery states without changing
+  scheduler algorithms. Verify stale callbacks, cancellation, hide/show and restart.
+- [x] QA-PLAYFUL: Test preferences, mode selection, focus, unclipped rendering,
+  finite transitions, removal and real desktop notification delivery; capture PNGs.
 - [ ] PERF-01: Profile idle CPU, heap and frame pacing with 1/20/100 notes; define
-  budgets from the v1.0 baseline, pause hidden themes and support reduced motion.
-- [ ] QA-03: Test theme disposal, resource loading, resize, reduced motion and
-  long-running deadlines on KDE and GNOME before the v1.2 release.
+  budgets from the v1.0 baseline. The opt-out disables all visual motion.
+- [ ] QA-03: Complete hands-on KDE/GNOME, multi-monitor, suspend/resume and
+  long-running desktop checks before approving v1.2.
+- [ ] RELEASE-PLAYFUL: Publish the screenshot URLs, validate AppStream online,
+  resolve the system OpenJFX RPM failure, and pass all foundation release gates.

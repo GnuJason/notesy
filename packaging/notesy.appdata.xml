@@ -11,11 +11,33 @@
     <p>Schedule reminders using calendar-aware presets or a custom date and time.
     Desktop notifications are delivered while Notesy is running, with overdue
     reminders recovered on the next launch.</p>
+    <p>Optional playful reminder visuals (egg, bomb, toaster) add a small animation
+    to your notes when reminders are delivered. These visuals are opt-in and do not
+    change reminder scheduling, notification delivery or note storage.</p>
   </description>
+  <url type="homepage">https://github.com/GnuJason/notesy</url>
   <launchable type="desktop-id">notesy.desktop</launchable>
   <provides><binary>notesy</binary></provides>
   <categories><category>Office</category></categories>
   <content_rating type="oars-1.1"/>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Standard note and reminder settings</caption>
+      <image type="source">https://raw.githubusercontent.com/GnuJason/notesy/main/docs/screenshots/standard-reminder.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Optional egg reminder reveal</caption>
+      <image type="source">https://raw.githubusercontent.com/GnuJason/notesy/main/docs/screenshots/egg-fired.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Optional cartoon bomb reminder burst</caption>
+      <image type="source">https://raw.githubusercontent.com/GnuJason/notesy/main/docs/screenshots/bomb-fired.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Optional toaster reminder pop</caption>
+      <image type="source">https://raw.githubusercontent.com/GnuJason/notesy/main/docs/screenshots/toaster-fired.png</image>
+    </screenshot>
+  </screenshots>
   <releases>
     <release version="1.0" date="2026-09-25">
       <description><p>Initial foundation with native notes, local storage, and reminders.</p></description>
