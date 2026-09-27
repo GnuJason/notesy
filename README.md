@@ -23,12 +23,13 @@ VS Code build, run, test, metadata and archive tasks are in `.vscode/tasks.json`
 ## Notes And Reminders
 
 - Drag the top strip; resize with the bottom-right grip.
-- Use `+` for another note, the timer icon for a reminder, and the options menu
-  for color swatches, keep-on-top, handwritten fonts, all notes, deletion and quit.
+- Use `+` for another note, the timer icon for a reminder, and the visible pin to
+  keep a note on top. The options menu contains color swatches, handwritten fonts,
+  reminder visuals, all notes, deletion and quit.
 - Handwritten text is enabled when Chilanka, Patrick Hand, or Comic Sans MS is installed.
 - Changes autosave after 400 ms; pending edits are flushed when a window closes or
   the app quits. Closing a note hides it; deletion requires confirmation.
-- Reminders support 15 minutes, one hour, one day, one calendar month, one calendar
+- Reminders support 5, 10, 15 and 30 minutes, one or two hours, one day, one calendar month, one calendar
   year, or a future local date/time. Removing a reminder does not delete its note.
 - Reminders require the app to be running. Overdue reminders fire on the next launch.
   The app does not wake a sleeping computer or install an autostart/background daemon.
@@ -38,27 +39,61 @@ VS Code build, run, test, metadata and archive tasks are in `.vscode/tasks.json`
 
 ## Playful Reminders (v1.2 Preview)
 
-Open **Preferences...** from a note's options menu or the All Notes toolbar menu.
-Enable **Enable playful reminder visuals**, then select **Egg**, **Bomb**, or
-**Toaster**. Changes save immediately and apply to existing and future notes in
-this application session. Disable the checkbox at any time to restore standard notes.
+Choose **Reminder visual > Egg / Bomb / Toaster** in a note's options menu to opt
+in for that note. Different notes can use different graphics. Choose **None** to
+disable the overlay without changing note content or its reminder.
+
+**Preferences...** controls the default selection for new notes and notes without
+a saved override. Changing defaults does not overwrite an explicit per-note choice.
 
 Artwork occupies a small, mouse-transparent footer area without covering note text.
 Scheduled reminders show idle artwork, with a brief wobble near the deadline.
 After the desktop notification service accepts delivery, the egg cracks to reveal
-a note, the cartoon bomb becomes a small burst, or the toast pops up. The effect
-then fades away. This is visual feedback only: scheduling, retries, notification
-content, and SQLite note storage are unchanged. The existing reminder-setting
-dialog is unchanged; no extra popup or sound is added when a reminder fires.
+a note, the cartoon bomb becomes a small burst, or the toast pops up. The expired
+artwork remains static until **Clear reminder / visual** or a new reminder/snooze.
+It survives hide/show and normal app restart without replaying the animation.
+Scheduling, retries, notification text and SQLite note storage are unchanged;
+no extra popup or sound is added on delivery.
 
 Hidden notes stop their animations and do not steal focus or open on delivery.
 Changing modes or disabling visuals stops the previous effect immediately. Unknown
 or unreadable preferences fall back to standard reminders; a failed save keeps the
 previous selection and displays an error. Choosing a mode does not set a reminder.
 
-Global preferences live in `$XDG_CONFIG_HOME/notesy/preferences.properties`, falling
+Legacy global defaults live in `$XDG_CONFIG_HOME/notesy/preferences.properties`, falling
 back to `~/.config/notesy/preferences.properties`. Missing fields default to
 `playfulModeEnabled=false` and `playfulModeType=NONE`. No database migration is needed.
+New per-profile theme and per-note visual choices live in `visuals.properties`
+beside that profile's `notes.db`. Only `theme` and each note's `playfulModeEnabled`,
+`playfulModeType`, and `playfulExpiredState` are stored there. Neither the existing
+database schema nor the legacy preferences format changes. Back up both files.
+
+## Themes And Window Controls
+
+**Preferences > Theme** offers Light (default), high-contrast Dark, and textured
+Paper. CSS applies to notes, controls, borders, menus and dialogs; underlying note
+colours remain unchanged. Open and new note windows share the profile's theme.
+Theme changes save preferences immediately and queue the existing 400 ms note
+autosave; close/quit still flush pending edits. Native move and resize events also
+queue autosave using the existing note coordinates.
+
+Enable **Avoid overlap for new notes (this session)** in Preferences to choose
+free screen space; when the screen is full this minimizes overlap. It is off by
+default and does not reposition existing notes. Show All preserves the previously
+focused note on top. **Snap to
+grid (this session)** is per-window, optional, off by default, and snaps to a 20-pixel
+grid on drag release. It is not persisted and does not change ordinary free movement.
+
+**Snooze > 5 / 10 / 30 minutes** reschedules the selected note using the existing
+reminder setter. Reminder tooltips include zone/offset information. The dialog's
+**Preview zone** converts the displayed time only: custom dates and times are still
+entered in the system zone, and scheduling is unchanged. The optional desktop
+action **Open Notesy** (`notesy --all-notes`) opens the existing All Notes window
+after normal startup; it does not add a second lifecycle or bypass the profile lock.
+
+| High-contrast Dark | Textured Paper |
+| --- | --- |
+| ![Dark note](docs/screenshots/theme-dark.png) | ![Paper note](docs/screenshots/theme-paper.png) |
 
 | Standard reminder | Egg | Bomb | Toaster |
 | --- | --- | --- | --- |
@@ -92,6 +127,15 @@ end-to-end delivery check; it sends one test notification. It verifies all visua
 modes, preference controls, cross-window updates, animation cleanup, non-clipping,
 focus preservation, and unchanged note content. PNGs are written to
 `target/ui-snapshots`. On an active desktop, omit `xvfb-run`.
+There are 12 native UI test cases, separate from the repository, scheduler and
+preferences unit tests. Run all of them with
+`STICKYNOTEFX_UI_TEST=1 mvn clean verify` on an active desktop.
+
+The paper tile and 32/64/128/256-pixel icons are generated with
+`java scripts/GenerateVisualAssets.java`; no new dependency is needed. Icons match
+the original desktop SVG geometry. Runtime icon selection supports HiDPI screens;
+the scalable desktop SVG is retained. Multi-monitor DPI transitions still require
+hands-on compositor testing.
 
 ## Packaging Status
 

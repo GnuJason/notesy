@@ -38,6 +38,7 @@ public final class StickyNoteApplication extends Application {
             database = new DatabaseProvider(path);
             manager = new NoteManager(new NoteRepository(database), primary);
             manager.restore();
+            if (getParameters().getRaw().contains("--all-notes")) manager.showManager();
         } catch (Exception failure) {
             showError(failure);
             Platform.exit();

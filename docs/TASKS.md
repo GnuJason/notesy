@@ -43,12 +43,23 @@ the corresponding local build and test commands.
 - [x] THEME-03: Implement original vector egg artwork with crack and note reveal.
 - [x] THEME-04: Implement a cartoon fuse and finite, non-flashing burst effect.
 - [x] THEME-05: Implement original toaster artwork and toast-pop transition.
-- [x] THEME-06: Persist global opt-in settings outside the notes database. Apply
-  immediately to open and future notes; unknown profiles restore safe defaults.
+- [x] THEME-06: Persist per-note opt-in selection and expired state in a separate
+  profile-scoped sidecar; global defaults never replace explicit note choices.
 - [x] THEME-07: Connect pending and successful-delivery states without changing
   scheduler algorithms. Verify stale callbacks, cancellation, hide/show and restart.
 - [x] QA-PLAYFUL: Test preferences, mode selection, focus, unclipped rendering,
   finite transitions, removal and real desktop notification delivery; capture PNGs.
+- [x] CSS-01: Activate the theme boundary with Light/Dark/Paper CSS, themed dialogs
+  and artwork, immediate preference saves and debounced note autosave.
+- [x] UX-01: Add UI-only short presets, snooze and time-zone previews without
+  modifying scheduler algorithms or notification payloads.
+- [x] WINDOWS-01: Avoid initial overlap, preserve stacking focus, observe native
+  geometry changes, add optional session-only snap and the All Notes desktop action.
+- [x] ICONS-01: Generate 32/64/128/256-pixel icons using only the JDK, retaining SVG.
+- [x] QA-NATIVE-12: Add twelve native UI cases including expiry restart, independent
+  per-note modes, themes, icon loading, snooze, placement and geometry persistence.
+- [ ] SOAK-01: Run the new themed/per-note build for multiple hours; record CPU,
+  memory, compositor behavior and clean shutdown. Earlier-build uptime is not proof.
 - [ ] PERF-01: Profile idle CPU, heap and frame pacing with 1/20/100 notes; define
   budgets from the v1.0 baseline. The opt-out disables all visual motion.
 - [ ] QA-03: Complete hands-on KDE/GNOME, multi-monitor, suspend/resume and

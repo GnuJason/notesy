@@ -21,6 +21,7 @@ public final class StickyNoteController {
     private double resizeY;
     private double initialWidth;
     private double initialHeight;
+    private Consumer<Long> reminderChanged = timestamp -> { };
 
     public StickyNoteController(Note initial, Consumer<Note> save) {
         this.note = visibleBounds(initial);
@@ -67,6 +68,22 @@ public final class StickyNoteController {
             updateBounds();
         });
         view.stage().setOnHidden(event -> flush());
+        javafx.beans.InvalidationListener boundsChanged = observable -> {
+            if (view.stage().isShowing()) updateBounds();
+        };
+        view.stage().xProperty().addListener(boundsChanged);
+        view.stage().yProperty().addListener(boundsChanged);
+        view.stage().widthProperty().addListener(boundsChanged);
+        view.stage().heightProperty().addListener(boundsChanged);
+        view.dragBar().setOnMouseReleased(event -> {
+            if (!view.snapToGridItem().isSelected() || isButton(event.getTarget())) return;
+            var bounds = Screen.getScreensForRectangle(view.stage().getX(), view.stage().getY(), 1, 1)
+                .stream().findFirst().orElse(Screen.getPrimary()).getVisualBounds();
+            view.stage().setX(Math.max(bounds.getMinX(), Math.min(bounds.getMaxX() - view.stage().getWidth(),
+                bounds.getMinX() + Math.round((view.stage().getX() - bounds.getMinX()) / 20) * 20)));
+            view.stage().setY(Math.max(bounds.getMinY(), Math.min(bounds.getMaxY() - view.stage().getHeight(),
+                bounds.getMinY() + Math.round((view.stage().getY() - bounds.getMinY()) / 20) * 20)));
+        });
     }
 
     private static boolean isButton(Object target) {
@@ -114,7 +131,11 @@ public final class StickyNoteController {
         note = note.withReminder(timestamp);
         view.setReminder(timestamp);
         flush();
+        reminderChanged.accept(timestamp);
     }
+
+    public void onReminderChanged(Consumer<Long> action) { reminderChanged = action; }
+    public void requestAutosave() { dirty(); }
 
     public void dispose() {
         autosave.stop();

@@ -27,6 +27,7 @@ public final class MainWindow {
     public MainWindow(Stage stage, Runnable create, Runnable showAll, LongConsumer open, Runnable quit) {
         this.stage = stage;
         stage.setTitle("Notesy");
+        org.stickynotefx.theme.WindowIcons.apply(stage);
         Button add = new Button("+ New note");
         add.setOnAction(event -> create.run());
         Button stack = new Button("Show all");
@@ -84,6 +85,9 @@ public final class MainWindow {
     }
 
     public void show() { stage.show(); stage.toFront(); }
+    public void setTheme(org.stickynotefx.theme.ThemeRegistry.Theme theme) {
+        org.stickynotefx.theme.ThemeRegistry.apply(stage.getScene().getRoot(), theme);
+    }
     public void onPreferences(Runnable action) { preferences.setOnAction(event -> action.run()); }
     public void setStatus(String text) { status.setText(text); }
 }

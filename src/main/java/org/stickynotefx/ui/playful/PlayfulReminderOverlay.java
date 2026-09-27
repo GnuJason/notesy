@@ -1,10 +1,8 @@
 package org.stickynotefx.ui.playful;
 
 import javafx.animation.Animation;
-import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
 import javafx.animation.RotateTransition;
-import javafx.animation.SequentialTransition;
 import javafx.scene.Group;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
@@ -46,6 +44,14 @@ public abstract class PlayfulReminderOverlay extends Pane implements AutoCloseab
         shape.setFill(Color.web(fill));
         shape.setStroke(Color.web("#30343B"));
         shape.setStrokeWidth(1.6);
+        shape.getStyleClass().add("playful-art");
+        shape.getStyleClass().add(switch (fill.toUpperCase(java.util.Locale.ROOT)) {
+            case "#FFFDF5" -> "art-shell";
+            case "#F4D44D" -> "art-accent";
+            case "#41464D" -> "art-body";
+            case "#8BD1C1" -> "art-toaster";
+            default -> "art-paper";
+        });
         return shape;
     }
 
@@ -79,16 +85,27 @@ public abstract class PlayfulReminderOverlay extends Pane implements AutoCloseab
         artwork.setRotate(0);
         setVisible(true);
         state = State.FIRED;
-        FadeTransition fade = new FadeTransition(Duration.millis(450), artwork);
-        fade.setFromValue(1);
-        fade.setToValue(0);
-        motion = new SequentialTransition(arrival(), new PauseTransition(Duration.seconds(2)), fade);
-        motion.setOnFinished(event -> close());
+        motion = arrival();
+        motion.setOnFinished(event -> {
+            expiredArtwork();
+            motion = null;
+        });
         motion.play();
+    }
+
+    public final void showExpired() {
+        close();
+        resetArtwork();
+        artwork.setOpacity(1);
+        artwork.setRotate(0);
+        expiredArtwork();
+        state = State.FIRED;
+        setVisible(true);
     }
 
     protected abstract void resetArtwork();
     protected abstract Animation arrival();
+    protected abstract void expiredArtwork();
 
     public final State state() { return state; }
     public final boolean isAnimating() {

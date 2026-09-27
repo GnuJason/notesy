@@ -27,4 +27,8 @@ public final class ToasterOverlay extends PlayfulReminderOverlay {
         pop.setInterpolator(javafx.animation.Interpolator.EASE_OUT);
         return pop;
     }
+
+    @Override protected void expiredArtwork() {
+        toast.setTranslateY(-3);
+    }
 }

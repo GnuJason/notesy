@@ -37,6 +37,9 @@ install -Dm0755 target/%{name} %{buildroot}%{_bindir}/%{name}
 install -Dm0644 %{SOURCE1} %{buildroot}%{_datadir}/applications/%{name}.desktop
 install -Dm0644 %{SOURCE2} %{buildroot}%{_datadir}/metainfo/%{name}.appdata.xml
 install -Dm0644 packaging/%{name}.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/%{name}.svg
+for size in 32 64 128 256; do
+	install -Dm0644 src/main/resources/org/stickynotefx/icons/%{name}-${size}.png %{buildroot}%{_datadir}/icons/hicolor/${size}x${size}/apps/%{name}.png
+done
 
 %check
 desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
@@ -49,5 +52,6 @@ appstream-util validate-relax --nonet %{buildroot}%{_datadir}/metainfo/%{name}.a
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/metainfo/%{name}.appdata.xml
 %{_datadir}/icons/hicolor/scalable/apps/%{name}.svg
+%{_datadir}/icons/hicolor/*x*/apps/%{name}.png
 
 %changelog

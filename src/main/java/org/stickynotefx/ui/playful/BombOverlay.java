@@ -41,4 +41,14 @@ public final class BombOverlay extends PlayfulReminderOverlay {
         pop.setToY(1);
         return pop;
     }
+
+    @Override protected void expiredArtwork() {
+        body.setVisible(false);
+        fuse.setVisible(false);
+        spark.setVisible(false);
+        burst.setVisible(true);
+        note.setVisible(true);
+        burst.setScaleX(1);
+        burst.setScaleY(1);
+    }
 }

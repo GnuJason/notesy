@@ -4,11 +4,9 @@
 }
 .paper {
     -fx-background-radius: 8;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.24), 9, 0.12, 0, 3);
 }
 .drag-bar {
     -fx-padding: 5 8 3 8;
-    -fx-background-color: linear-gradient(to bottom, rgba(255,255,255,0.50), rgba(255,255,255,0.04) 75%, rgba(0,0,0,0.04));
     -fx-background-radius: 8 8 0 0;
 }
 .icon-button {
@@ -27,6 +25,12 @@
 }
 .icon-button:hover, .icon-button:focused { -fx-background-color: rgba(0,0,0,0.09); }
 .icon-button:active { -fx-background-color: #365b49; -fx-text-fill: white; }
+.note-pin-icon {
+    -fx-fill: #424238;
+    -fx-scale-x: 0.68;
+    -fx-scale-y: 0.68;
+}
+.icon-button:active .note-pin-icon { -fx-fill: white; }
 .menu-button.icon-button > .arrow-button { -fx-padding: 0; }
 .menu-button.icon-button > .arrow-button > .arrow { -fx-shape: ""; -fx-padding: 0; }
 .note-editor, .note-editor .scroll-pane, .note-editor .scroll-pane .viewport, .note-editor .content {

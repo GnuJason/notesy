@@ -14,6 +14,8 @@ public final class PlayfulSettingsStore {
         this.path = path.toAbsolutePath();
     }
 
+    public Path sidecarPath() { return path.resolveSibling("visuals.properties"); }
+
     public static PlayfulSettingsStore userSettings() {
         String configured = System.getenv("XDG_CONFIG_HOME");
         Path base = configured != null && Path.of(configured).isAbsolute()

@@ -20,9 +20,9 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
+import javafx.scene.shape.SVGPath;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 import org.stickynotefx.ui.playful.PlayfulMode;
 import org.stickynotefx.ui.playful.PlayfulReminderOverlay;
 import org.stickynotefx.ui.playful.PlayfulSettings;
@@ -30,26 +30,37 @@ import org.stickynotefx.ui.playful.PlayfulSettings;
 import java.util.function.Consumer;
 
 public final class StickyNoteView {
-    private final Stage stage = new Stage(StageStyle.TRANSPARENT);
+    private final Stage stage = new Stage(javafx.stage.StageStyle.UNDECORATED);
     private final BorderPane paper = new BorderPane();
     private final TextArea editor = new TextArea();
     private final HBox dragBar = new HBox(4);
     private final Region resizeGrip = new Region();
     private final Button addButton = iconButton("+", "New note");
     private final Button reminderButton = iconButton("\u23f1", "Set reminder");
+    private final javafx.scene.control.ToggleButton pinButton = new javafx.scene.control.ToggleButton();
+    private final Button closeButton = iconButton("\u00d7", "Close note");
+    private final MenuButton optionsMenu = new MenuButton("\u22ef");
     private final MenuItem deleteItem = new MenuItem("Delete note");
     private final MenuItem managerItem = new MenuItem("All notes");
     private final MenuItem quitItem = new MenuItem("Quit Notesy");
     private final MenuItem preferencesItem = new MenuItem("Preferences...");
+    private final CheckMenuItem snapToGrid = new CheckMenuItem("Snap to grid (this session)");
+    private final MenuItem clearReminder = new MenuItem("Clear reminder / visual");
+    private final javafx.scene.control.Menu snooze = new javafx.scene.control.Menu("Snooze");
+    private final java.util.Map<PlayfulMode, javafx.scene.control.RadioMenuItem> modeItems = new java.util.EnumMap<>(PlayfulMode.class);
+    private Consumer<PlayfulSettings> onPlayful = settings -> { };
+    private java.util.function.IntConsumer onSnooze = minutes -> { };
     private final Label status = new Label();
     private final StackPane playfulSlot = new StackPane();
     private PlayfulReminderOverlay overlay;
     private PlayfulSettings playfulSettings = PlayfulSettings.DEFAULT;
     private Long reminderTimestamp;
+    private boolean playfulExpired;
     private Consumer<String> onColor = value -> { };
 
     public StickyNoteView() {
         stage.setTitle("Notesy");
+        org.stickynotefx.theme.WindowIcons.apply(stage);
         stage.setMinWidth(260);
         stage.setMinHeight(220);
         editor.setWrapText(true);
@@ -60,10 +71,10 @@ public final class StickyNoteView {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         spacer.setMinWidth(24);
-        MenuButton menu = new MenuButton("\u22ef");
-        menu.setTooltip(new Tooltip("Note options"));
-        menu.setAccessibleText("Note options");
-        menu.getStyleClass().add("icon-button");
+        optionsMenu.setTooltip(new Tooltip("Note options"));
+        optionsMenu.setAccessibleText("Note options");
+        optionsMenu.setId("note-options");
+        optionsMenu.getStyleClass().add("icon-button");
         HBox swatches = new HBox(8);
         swatches.setPadding(new Insets(6));
         for (String color : new String[]{"#FFF176", "#B8E0D2", "#F6BBC6", "#B9DBF4", "#E3D5F5"}) {
@@ -75,8 +86,22 @@ public final class StickyNoteView {
             swatches.getChildren().add(swatch);
         }
         CustomMenuItem colors = new CustomMenuItem(swatches, false);
-        CheckMenuItem onTop = new CheckMenuItem("Keep on top");
-        onTop.setOnAction(event -> stage.setAlwaysOnTop(onTop.isSelected()));
+        pinButton.getStyleClass().add("icon-button");
+        pinButton.setId("pin-note");
+        pinButton.setGraphic(pinGraphic());
+        Tooltip pinTooltip = new Tooltip();
+        pinTooltip.textProperty().bind(javafx.beans.binding.Bindings.when(pinButton.selectedProperty())
+            .then("Unpin note").otherwise("Pin note (keep on top)"));
+        pinButton.setTooltip(pinTooltip);
+        pinButton.accessibleTextProperty().bind(pinTooltip.textProperty());
+        pinButton.selectedProperty().addListener((observable, before, selected) -> {
+            stage.setAlwaysOnTop(selected);
+            pinButton.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("active"), selected);
+        });
+        stage.alwaysOnTopProperty().addListener((observable, before, selected) -> pinButton.setSelected(selected));
+        closeButton.setId("close-note");
+        closeButton.setOnAction(event -> stage.fireEvent(new javafx.stage.WindowEvent(stage,
+            javafx.stage.WindowEvent.WINDOW_CLOSE_REQUEST)));
         CheckMenuItem handwriting = new CheckMenuItem("Handwritten font");
         String family = Font.getFamilies().stream()
                 .filter(name -> name.equals("Chilanka") || name.equals("Patrick Hand")
@@ -85,11 +110,28 @@ public final class StickyNoteView {
         handwriting.setDisable(family == null);
         handwriting.setOnAction(event -> editor.setFont(
                 Font.font(handwriting.isSelected() ? family : "DejaVu Sans", 16)));
-        menu.getItems().addAll(colors, onTop, handwriting, preferencesItem,
+        var graphics = new javafx.scene.control.Menu("Reminder visual");
+        var group = new javafx.scene.control.ToggleGroup();
+        for (PlayfulMode mode : PlayfulMode.values()) {
+            var item = new javafx.scene.control.RadioMenuItem(mode.toString());
+            item.setToggleGroup(group);
+            item.setSelected(mode == PlayfulMode.NONE);
+            item.setOnAction(event -> onPlayful.accept(new PlayfulSettings(mode != PlayfulMode.NONE, mode)));
+            modeItems.put(mode, item);
+            graphics.getItems().add(item);
+        }
+        for (int minutes : new int[]{5, 10, 30}) {
+            MenuItem item = new MenuItem(minutes + " minutes");
+            item.setOnAction(event -> onSnooze.accept(minutes));
+            snooze.getItems().add(item);
+        }
+        snooze.setDisable(true);
+        clearReminder.setDisable(true);
+        optionsMenu.getItems().addAll(colors, handwriting, snapToGrid, graphics, snooze, clearReminder, preferencesItem,
                 new SeparatorMenuItem(), managerItem, deleteItem, quitItem);
         dragBar.getStyleClass().add("drag-bar");
         dragBar.setCursor(Cursor.MOVE);
-        dragBar.getChildren().addAll(addButton, spacer, reminderButton, menu);
+        dragBar.getChildren().addAll(addButton, spacer, pinButton, reminderButton, optionsMenu, closeButton);
         resizeGrip.getStyleClass().add("resize-grip");
         resizeGrip.setCursor(Cursor.SE_RESIZE);
         resizeGrip.setMinSize(18, 18);
@@ -111,14 +153,14 @@ public final class StickyNoteView {
         paper.setCenter(editor);
         paper.setBottom(footer);
         StackPane root = new StackPane(paper);
-        root.setPadding(new Insets(10));
         root.setStyle("-fx-background-color: transparent;");
         Scene scene = new Scene(root, 320, 300, Color.TRANSPARENT);
         scene.getStylesheets().add(getClass().getResource("/org/stickynotefx/notes.css").toExternalForm());
         stage.setScene(scene);
+        setTheme(org.stickynotefx.theme.ThemeRegistry.Theme.LIGHT);
         stage.showingProperty().addListener((observable, before, showing) -> visual(() -> {
             if (overlay != null) {
-                if (showing) overlay.scheduled(reminderTimestamp);
+            if (showing) refreshPlayful();
                 else overlay.close();
             }
         }));
@@ -132,40 +174,80 @@ public final class StickyNoteView {
         return button;
     }
 
+    private static SVGPath pinGraphic() {
+        SVGPath pin = new SVGPath();
+        pin.setContent("M 5 2 L 15 2 L 15 5 L 12 8 L 12 11 L 15 14 L 15 16 L 10 16 L 10 23 L 9 23 L 9 16 L 4 16 L 4 14 L 7 11 L 7 8 L 5 5 Z");
+        pin.getStyleClass().add("note-pin-icon");
+        return pin;
+    }
+
     public void setColor(String color) {
-        paper.setStyle("-fx-background-color: " + color + ";");
+        paper.setStyle("-notesy-note-color: " + color + ";");
     }
 
     public void setReminder(Long timestamp) {
         reminderTimestamp = timestamp;
+        playfulExpired = false;
+        refreshReminderActions();
         visual(() -> {
             if (overlay != null && stage.isShowing()) overlay.scheduled(timestamp);
         });
         reminderButton.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("active"), timestamp != null);
         String description = timestamp == null ? "Set reminder" : "Reminder: "
                 + java.time.Instant.ofEpochMilli(timestamp).atZone(java.time.ZoneId.systemDefault())
-                .format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM, HH:mm"));
+                .format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM, HH:mm z (XXX)"));
         reminderButton.setTooltip(new Tooltip(description));
         reminderButton.setAccessibleText(description);
     }
 
     public void setPlayfulSettings(PlayfulSettings settings) {
         playfulSettings = settings;
+        modeItems.get(settings.activeMode()).setSelected(true);
         visual(() -> {
             disposePlayful();
             if (settings.activeMode() == PlayfulMode.NONE) return;
             overlay = PlayfulReminderOverlay.create(settings.activeMode());
             playfulSlot.getChildren().setAll(overlay);
             playfulSlot.visibleProperty().bind(overlay.visibleProperty());
-            if (stage.isShowing()) overlay.scheduled(reminderTimestamp);
+            if (stage.isShowing()) refreshPlayful();
         });
     }
 
     public void reminderFired() {
+        playfulExpired = true;
+        refreshReminderActions();
         visual(() -> {
             if (overlay != null && stage.isShowing()) overlay.fired();
         });
     }
+
+    public void setPlayfulExpired(boolean expired) {
+        playfulExpired = expired;
+        refreshReminderActions();
+        visual(this::refreshPlayful);
+    }
+
+    private void refreshPlayful() {
+        if (overlay == null || !stage.isShowing()) return;
+        if (playfulExpired && reminderTimestamp == null) overlay.showExpired();
+        else overlay.scheduled(reminderTimestamp);
+    }
+
+    private void refreshReminderActions() {
+        snooze.setDisable(reminderTimestamp == null && !playfulExpired);
+        clearReminder.setDisable(snooze.isDisable());
+    }
+
+    public void setTheme(org.stickynotefx.theme.ThemeRegistry.Theme theme) {
+        org.stickynotefx.theme.ThemeRegistry.apply(stage.getScene().getRoot(), theme);
+    }
+
+    public boolean playfulExpired() { return playfulExpired; }
+    public CheckMenuItem snapToGridItem() { return snapToGrid; }
+    public MenuItem clearReminderItem() { return clearReminder; }
+    public javafx.scene.control.Menu snoozeMenu() { return snooze; }
+    public void onPlayful(Consumer<PlayfulSettings> action) { onPlayful = action; }
+    public void onSnooze(java.util.function.IntConsumer action) { onSnooze = action; }
 
     private void visual(Runnable action) {
         try {
@@ -195,6 +277,9 @@ public final class StickyNoteView {
     public Region resizeGrip() { return resizeGrip; }
     public Button addButton() { return addButton; }
     public Button reminderButton() { return reminderButton; }
+    public javafx.scene.control.ToggleButton pinButton() { return pinButton; }
+    public Button closeButton() { return closeButton; }
+    public MenuButton optionsMenu() { return optionsMenu; }
     public MenuItem deleteItem() { return deleteItem; }
     public MenuItem managerItem() { return managerItem; }
     public MenuItem quitItem() { return quitItem; }

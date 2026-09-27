@@ -6,6 +6,11 @@ Comment=Desktop notes with optional reminders
 Exec=notesy
 Icon=notesy
 Terminal=false
-Categories=Office;
+Categories=Office;Utility;
 Keywords=notes;sticky;reminder;timer;
 StartupNotify=false
+Actions=AllNotes;
+
+[Desktop Action AllNotes]
+Name=Open Notesy
+Exec=notesy --all-notes

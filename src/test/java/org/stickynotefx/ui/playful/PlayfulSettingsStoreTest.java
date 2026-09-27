@@ -12,6 +12,27 @@ class PlayfulSettingsStoreTest {
     @TempDir Path directory;
 
     @Test
+    void profileSidecarPreservesIndependentNotesAndTheme() throws Exception {
+        Path path = directory.resolve("visuals.properties");
+        var profile = new org.stickynotefx.ui.preferences.ProfilePreferences(path);
+        assertEquals(org.stickynotefx.theme.ThemeRegistry.Theme.LIGHT, profile.theme());
+        assertFalse(profile.note(1, PlayfulSettings.DEFAULT).enabled());
+        profile.setTheme(org.stickynotefx.theme.ThemeRegistry.Theme.DARK);
+        profile.setNote(1, new org.stickynotefx.ui.preferences.ProfilePreferences.NoteVisual(true, PlayfulMode.EGG, true));
+        profile.setNote(2, new org.stickynotefx.ui.preferences.ProfilePreferences.NoteVisual(true, PlayfulMode.TOASTER, false));
+        profile = new org.stickynotefx.ui.preferences.ProfilePreferences(path);
+        assertEquals(org.stickynotefx.theme.ThemeRegistry.Theme.DARK, profile.theme());
+        assertTrue(profile.note(1, PlayfulSettings.DEFAULT).expired());
+        assertEquals(PlayfulMode.TOASTER, profile.note(2, PlayfulSettings.DEFAULT).mode());
+        assertFalse(profile.note(2, PlayfulSettings.DEFAULT).expired());
+        assertFalse(new org.stickynotefx.ui.preferences.ProfilePreferences(directory.resolve("other/visuals.properties"))
+                .note(1, PlayfulSettings.DEFAULT).enabled());
+        profile.removeNote(1);
+        assertEquals(PlayfulMode.NONE, profile.note(1, PlayfulSettings.DEFAULT).mode());
+        assertEquals(PlayfulMode.TOASTER, profile.note(2, PlayfulSettings.DEFAULT).mode());
+    }
+
+    @Test
     void missingAndOlderProfilesDefaultToStandardReminders() throws Exception {
         Path path = directory.resolve("preferences.properties");
         var store = new PlayfulSettingsStore(path);

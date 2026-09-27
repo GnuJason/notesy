@@ -22,6 +22,9 @@ import java.time.format.ResolverStyle;
 
 public final class ReminderDialog extends Dialog<ReminderDialog.Selection> {
     public record Selection(Long timestamp) { }
+    public record QuickPreset(int minutes) {
+        @Override public String toString() { return minutes < 60 ? minutes + " minutes" : minutes / 60 + " hours"; }
+    }
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm").withResolverStyle(ResolverStyle.STRICT);
 
     public ReminderDialog(Window owner, Long existing) {
@@ -32,9 +35,11 @@ public final class ReminderDialog extends Dialog<ReminderDialog.Selection> {
         getDialogPane().getButtonTypes().addAll(set, clear, ButtonType.CANCEL);
         getDialogPane().lookupButton(clear).setDisable(existing == null);
         ComboBox<Object> preset = new ComboBox<>();
+        preset.setId("reminder-preset");
+        preset.getItems().addAll(new QuickPreset(5), new QuickPreset(10), new QuickPreset(30), new QuickPreset(120));
         preset.getItems().addAll((Object[]) ReminderPreset.values());
         preset.getItems().add("Custom");
-        preset.getSelectionModel().selectFirst();
+        preset.setValue(ReminderPreset.FIFTEEN_MINUTES);
         ZonedDateTime initial = existing == null ? ZonedDateTime.now().plusHours(1)
                 : java.time.Instant.ofEpochMilli(existing).atZone(ZoneId.systemDefault());
         DatePicker date = new DatePicker(initial.toLocalDate());
@@ -53,17 +58,44 @@ public final class ReminderDialog extends Dialog<ReminderDialog.Selection> {
         fields.addRow(2, new Label("Time (24h)"), time);
         fields.addRow(3, new Label("Time zone"), new Label(ZoneId.systemDefault().toString()));
         fields.add(error, 0, 4, 2, 1);
+        ComboBox<String> previewZone = new ComboBox<>();
+        previewZone.setId("preview-zone");
+        previewZone.setAccessibleText("Preview time zone");
+        previewZone.getItems().setAll(ZoneId.getAvailableZoneIds().stream().sorted().toList());
+        previewZone.setValue(ZoneId.systemDefault().getId());
+        previewZone.setMaxWidth(240);
+        Label preview = new Label();
+        preview.setId("zone-preview");
+        preview.setWrapText(true);
+        preview.setMaxWidth(240);
+        preview.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(() -> {
+            try {
+                ZonedDateTime selected = preset.getValue() instanceof QuickPreset quick ? ZonedDateTime.now().plusMinutes(quick.minutes())
+                        : preset.getValue() instanceof ReminderPreset choice ? choice.after(ZonedDateTime.now())
+                        : date.getValue().atTime(LocalTime.parse(time.getText().strip(), TIME)).atZone(ZoneId.systemDefault());
+                return selected.withZoneSameInstant(ZoneId.of(previewZone.getValue()))
+                        .format(DateTimeFormatter.ofPattern("EEE d MMM, HH:mm z (XXX)"));
+            } catch (RuntimeException invalid) {
+                return "";
+            }
+        }, preset.valueProperty(), date.valueProperty(), time.textProperty(), previewZone.valueProperty()));
+        fields.addRow(5, new Label("Preview zone"), previewZone);
+        fields.add(preview, 1, 6);
         date.disableProperty().bind(preset.valueProperty().isNotEqualTo("Custom"));
         time.disableProperty().bind(date.disableProperty());
         if (existing != null) preset.setValue("Custom");
         getDialogPane().setContent(fields);
+        org.stickynotefx.theme.ThemeRegistry.apply(getDialogPane(),
+            org.stickynotefx.theme.ThemeRegistry.current(owner.getScene().getRoot()));
         Button setButton = (Button) getDialogPane().lookupButton(set);
         final Long[] chosen = new Long[1];
         setButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
             try {
                 ZonedDateTime now = ZonedDateTime.now();
                 ZonedDateTime target;
-                if (preset.getValue() instanceof ReminderPreset choice) {
+                if (preset.getValue() instanceof QuickPreset quick) {
+                    target = now.plusMinutes(quick.minutes());
+                } else if (preset.getValue() instanceof ReminderPreset choice) {
                     target = choice.after(now);
                 } else {
                     LocalDate day = date.getValue();

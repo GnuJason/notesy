@@ -40,4 +40,13 @@ public final class EggOverlay extends PlayfulReminderOverlay {
         hatch.setToY(3);
         return new ParallelTransition(crack, hatch);
     }
+
+    @Override protected void expiredArtwork() {
+        whole.setVisible(false);
+        top.setVisible(true);
+        bottom.setVisible(true);
+        reveal.setVisible(true);
+        top.setTranslateX(12);
+        bottom.setTranslateY(3);
+    }
 }

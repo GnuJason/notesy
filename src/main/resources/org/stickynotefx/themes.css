@@ -1,0 +1,94 @@
+.theme-light {
+    -notesy-ink: #303128;
+    -notesy-border: rgba(0,0,0,0.22);
+    -notesy-hover: rgba(0,0,0,0.09);
+    -notesy-status: #704027;
+    -notesy-art-outline: #30343b;
+    -notesy-art-shell: #fffdf5;
+    -notesy-art-accent: #f4d44d;
+    -notesy-art-body: #41464d;
+    -notesy-art-toaster: #8bd1c1;
+}
+.theme-dark {
+    -fx-base: #25282c;
+    -fx-background: #202225;
+    -fx-control-inner-background: #202225;
+    -fx-accent: #81d4be;
+    -fx-focus-color: #81d4be;
+    -fx-text-base-color: #ffffff;
+    -fx-text-background-color: #ffffff;
+    -notesy-ink: #ffffff;
+    -notesy-border: #b6c1c5;
+    -notesy-hover: #494f54;
+    -notesy-status: #ffe699;
+    -notesy-art-outline: #e4eef0;
+    -notesy-art-shell: #596166;
+    -notesy-art-accent: #f4d44d;
+    -notesy-art-body: #7d8993;
+    -notesy-art-toaster: #238875;
+}
+.theme-paper {
+    -fx-base: #edf1ec;
+    -fx-background: #f4f6f0;
+    -fx-control-inner-background: #f4f6f0;
+    -notesy-ink: #24352d;
+    -notesy-border: #82948b;
+    -notesy-hover: #d0e0d5;
+    -notesy-status: #405649;
+    -notesy-art-outline: #304c3d;
+    -notesy-art-shell: #f9fcf5;
+    -notesy-art-accent: #f4d44d;
+    -notesy-art-body: #41464d;
+    -notesy-art-toaster: #8bd1c1;
+}
+.theme-light .paper { -fx-background-color: -notesy-note-color; }
+.theme-dark .paper {
+    -fx-background-color: #202225;
+    -fx-border-color: -notesy-border;
+    -fx-border-radius: 8;
+}
+.theme-paper .paper {
+    -fx-background-color: #e8eee3;
+    -fx-border-color: -notesy-border;
+    -fx-border-radius: 8;
+}
+.theme-dark .drag-bar, .theme-paper .drag-bar { -fx-background-color: transparent; }
+.theme-light .note-editor, .theme-dark .note-editor, .theme-paper .note-editor {
+    -fx-text-fill: -notesy-ink;
+}
+.theme-light .icon-button, .theme-dark .icon-button, .theme-paper .icon-button {
+    -fx-text-fill: -notesy-ink;
+}
+.theme-light .note-pin-icon, .theme-dark .note-pin-icon, .theme-paper .note-pin-icon {
+    -fx-fill: -notesy-ink;
+}
+.theme-light .icon-button:hover, .theme-dark .icon-button:hover, .theme-paper .icon-button:hover,
+.theme-light .icon-button:focused, .theme-dark .icon-button:focused, .theme-paper .icon-button:focused {
+    -fx-background-color: -notesy-hover;
+}
+.theme-light .icon-button:active, .theme-dark .icon-button:active, .theme-paper .icon-button:active {
+    -fx-background-color: #365b49;
+    -fx-text-fill: #ffffff;
+}
+.theme-light .note-status, .theme-dark .note-status, .theme-paper .note-status {
+    -fx-text-fill: -notesy-status;
+}
+.theme-light .resize-grip, .theme-dark .resize-grip, .theme-paper .resize-grip {
+    -fx-background-color: -notesy-border;
+}
+.playful-art { -fx-stroke: -notesy-art-outline; }
+.art-shell { -fx-fill: -notesy-art-shell; }
+.art-accent { -fx-fill: -notesy-art-accent; }
+.art-body { -fx-fill: -notesy-art-body; }
+.art-toaster { -fx-fill: -notesy-art-toaster; }
+.art-paper { -fx-fill: -notesy-art-shell; }
+.notesy-preferences {
+    -fx-border-color: -notesy-border;
+    -fx-border-width: 1;
+}
+.preferences-header { -fx-padding: 6 12; }
+.theme-dark .dialog-pane, .theme-paper .dialog-pane { -fx-background-color: -fx-background; }
+.theme-dark .button:hover, .theme-dark .menu-button:hover, .theme-dark .combo-box:hover {
+    -fx-border-color: -notesy-border;
+    -fx-border-radius: 4;
+}

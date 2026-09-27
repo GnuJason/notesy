@@ -12,15 +12,27 @@
     Desktop notifications are delivered while Notesy is running, with overdue
     reminders recovered on the next launch.</p>
     <p>Optional playful reminder visuals (egg, bomb, toaster) add a small animation
-    to your notes when reminders are delivered. These visuals are opt-in and do not
-    change reminder scheduling, notification delivery or note storage.</p>
+    to individual notes when reminders are delivered. Expired artwork remains until
+    cleared or rescheduled. These visuals are opt-in and do not change reminder
+    scheduling, notification delivery or note storage.</p>
+    <p>Choose Light, high-contrast Dark or textured Paper themes. Short reminder
+    presets, snooze controls and time-zone previews keep daily notes convenient.
+    Optional snapping and improved window placement help organize your desktop.</p>
   </description>
   <url type="homepage">https://github.com/GnuJason/notesy</url>
   <launchable type="desktop-id">notesy.desktop</launchable>
   <provides><binary>notesy</binary></provides>
-  <categories><category>Office</category></categories>
+  <categories><category>Office</category><category>Utility</category></categories>
   <content_rating type="oars-1.1"/>
   <screenshots>
+    <screenshot>
+      <caption>High-contrast Dark theme with an expired reminder</caption>
+      <image type="source">https://raw.githubusercontent.com/GnuJason/notesy/main/docs/screenshots/theme-dark.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Textured Paper theme with an expired reminder</caption>
+      <image type="source">https://raw.githubusercontent.com/GnuJason/notesy/main/docs/screenshots/theme-paper.png</image>
+    </screenshot>
     <screenshot type="default">
       <caption>Standard note and reminder settings</caption>
       <image type="source">https://raw.githubusercontent.com/GnuJason/notesy/main/docs/screenshots/standard-reminder.png</image>

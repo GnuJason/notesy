@@ -37,11 +37,18 @@ import static org.junit.jupiter.api.Assertions.*;
 class StickyNoteUiTest {
     @TempDir Path directory;
 
-    @Test
-    void editsBoundsColorsRemindersAndDeletionSurviveLifecycle() throws Exception {
+    @org.junit.jupiter.api.BeforeAll
+    static void startToolkit() throws Exception {
         CountDownLatch ready = new CountDownLatch(1);
         Platform.startup(() -> { Platform.setImplicitExit(false); ready.countDown(); });
         assertTrue(ready.await(15, TimeUnit.SECONDS));
+    }
+
+    @org.junit.jupiter.api.AfterAll
+    static void stopToolkit() { Platform.exit(); }
+
+    @Test
+    void editsBoundsColorsRemindersAndDeletionSurviveLifecycle() throws Exception {
         FutureTask<Void> exercise = new FutureTask<>(() -> {
             try (var database = new DatabaseProvider(directory.resolve("notes.db"))) {
                 var repository = new NoteRepository(database);
@@ -72,7 +79,7 @@ class StickyNoteUiTest {
                     mouse(grip, MouseEvent.MOUSE_DRAGGED, 500, 450);
                     assertEquals(420, first.view().stage().getWidth(), 1);
                     assertEquals(350, first.view().stage().getHeight(), 1);
-                    MenuButton options = (MenuButton) first.view().dragBar().getChildren().getLast();
+                    MenuButton options = first.view().optionsMenu();
                     HBox colors = (HBox) ((CustomMenuItem) options.getItems().getFirst()).getContent();
                     ((Button) colors.getChildren().get(1)).fire();
                     first.flush();
@@ -105,15 +112,298 @@ class StickyNoteUiTest {
             }
             return null;
         });
-        try {
-            Platform.runLater(exercise);
-            exercise.get(30, TimeUnit.SECONDS);
-            verifyDebouncedAutosave();
-            verifyPlayfulAnimations();
-            verifyScheduledPlayfulDelivery();
-        } finally {
-            Platform.exit();
-        }
+        Platform.runLater(exercise);
+        exercise.get(30, TimeUnit.SECONDS);
+        verifyDebouncedAutosave();
+        verifyPlayfulAnimations();
+        verifyScheduledPlayfulDelivery();
+    }
+
+    @Test
+    void lightThemePreservesNoteColorAndDefaultOptOut() throws Exception {
+        withManager(fixture -> {
+            var note = fixture.manager().createNote();
+            assertEquals(org.stickynotefx.theme.ThemeRegistry.Theme.LIGHT,
+                    org.stickynotefx.theme.ThemeRegistry.current(note.view().stage().getScene().getRoot()));
+            assertNull(note.view().playfulOverlay());
+            var pin = note.view().pinButton();
+            assertTrue(note.view().dragBar().getChildren().contains(pin));
+                assertEquals(javafx.stage.StageStyle.UNDECORATED, note.view().stage().getStyle());
+                assertEquals(note.view().reminderButton(), note.view().dragBar().getChildren().get(3));
+                assertEquals(pin, note.view().dragBar().getChildren().get(2));
+                assertEquals(1, note.view().dragBar().getChildren().stream()
+                    .filter(node -> node.getId() != null && node.getId().equals("close-note")).count());
+            assertFalse(pin.isSelected());
+            pin.fire();
+            assertTrue(note.view().stage().isAlwaysOnTop());
+            assertEquals("Unpin note", pin.getTooltip().getText());
+            pin.fire();
+            assertFalse(note.view().stage().isAlwaysOnTop());
+            note.view().stage().setAlwaysOnTop(true);
+            assertTrue(pin.isSelected());
+            note.view().stage().setAlwaysOnTop(false);
+            assertFalse(pin.isSelected());
+            note.view().closeButton().fire();
+            assertFalse(note.view().stage().isShowing());
+            assertFalse(fixture.manager().controller(note.note().id()).view().stage().isShowing());
+                assertEquals(java.util.List.of(32.0, 64.0, 128.0, 256.0),
+                    note.view().stage().getIcons().stream().map(javafx.scene.image.Image::getWidth).toList());
+                assertTrue(note.view().stage().getIcons().stream().noneMatch(javafx.scene.image.Image::isError));
+            note.view().stage().getScene().getRoot().applyCss();
+            var paper = (javafx.scene.layout.Region) note.view().stage().getScene().lookup(".paper");
+            assertEquals(javafx.scene.paint.Color.web(note.note().color()), paper.getBackground().getFills().getFirst().getFill());
+            long timestamp = System.currentTimeMillis() + 60_000;
+            note.setReminder(timestamp);
+            fixture.manager().reminderDelivered(note.note().id(), timestamp);
+            assertFalse(Files.exists(directory.resolve("visuals.properties")));
+            assertNull(note.view().playfulOverlay());
+        });
+    }
+
+    @Test
+    void darkThemeStylesEditorReminderDialogAndPreferences() throws Exception {
+        withManager(fixture -> {
+            var note = fixture.manager().createNote();
+            note.view().editor().setText("High contrast note");
+            fixture.manager().setTheme(org.stickynotefx.theme.ThemeRegistry.Theme.DARK);
+            note.view().stage().getScene().getRoot().applyCss();
+            var paper = (javafx.scene.layout.Region) note.view().stage().getScene().lookup(".paper");
+            assertEquals(javafx.scene.paint.Color.web("#202225"), paper.getBackground().getFills().getFirst().getFill());
+            var text = (javafx.scene.text.Text) note.view().editor().lookup(".text");
+            assertEquals(javafx.scene.paint.Color.WHITE, text.getFill());
+            var reminder = new ReminderDialog(note.view().stage(), null);
+            assertEquals(org.stickynotefx.theme.ThemeRegistry.Theme.DARK,
+                    org.stickynotefx.theme.ThemeRegistry.current(reminder.getDialogPane()));
+            reminder.show();
+            capture(reminder.getDialogPane(), "dark-reminder.png");
+            reminder.close();
+            var preferences = new PlayfulPreferencesDialog(note.view().stage(), PlayfulSettings.DEFAULT, settings -> { });
+            preferences.addThemeSelector(org.stickynotefx.theme.ThemeRegistry.Theme.DARK, fixture.manager()::setTheme);
+            preferences.addPlacementToggle(false, fixture.manager()::setSmartPlacement);
+            preferences.show();
+            assertEquals(org.stickynotefx.theme.ThemeRegistry.Theme.DARK,
+                    org.stickynotefx.theme.ThemeRegistry.current(preferences.getDialogPane()));
+            capture(preferences.getDialogPane(), "theme-preferences.png");
+                assertEquals(javafx.stage.StageStyle.UNDECORATED,
+                    ((Stage) preferences.getDialogPane().getScene().getWindow()).getStyle());
+                assertEquals(1, preferences.getDialogPane().lookupAll("#close-preferences").size());
+                ((Button) preferences.getDialogPane().lookup("#close-preferences")).fire();
+                assertFalse(preferences.isShowing());
+                assertTrue(note.view().stage().isShowing());
+            fixture.manager().setNotePlayfulSettings(note.note().id(), new PlayfulSettings(true, PlayfulMode.BOMB));
+            note.view().reminderFired();
+            note.view().playfulOverlay().showExpired();
+            capture(note, "theme-dark.png");
+        });
+    }
+
+    @Test
+    void paperThemeUsesFlatSurfaceAndKeepsArtworkUnclipped() throws Exception {
+        withManager(fixture -> {
+            var note = fixture.manager().createNote();
+            fixture.manager().setTheme(org.stickynotefx.theme.ThemeRegistry.Theme.PAPER);
+            note.view().editor().setText("Paper, without a new storage format");
+            fixture.manager().setNotePlayfulSettings(note.note().id(), new PlayfulSettings(true, PlayfulMode.TOASTER));
+            note.view().reminderFired();
+            note.view().playfulOverlay().showExpired();
+            note.view().stage().getScene().getRoot().applyCss();
+            var paper = (javafx.scene.layout.Region) note.view().stage().getScene().lookup(".paper");
+            assertEquals(javafx.geometry.Insets.EMPTY, ((javafx.scene.layout.StackPane) note.view().stage().getScene().getRoot()).getPadding());
+            assertNull(paper.getEffect());
+            assertTrue(paper.getBackground().getImages().isEmpty());
+            assertEquals(javafx.scene.paint.Color.web("#e8eee3"), paper.getBackground().getFills().getFirst().getFill());
+            assertTrue(note.view().playfulOverlay().isVisible());
+            capture(note, "theme-paper.png");
+        });
+    }
+
+    @Test
+    void newWindowsInheritThemeAndThemeChangesFlushPendingText() throws Exception {
+        withManager(fixture -> {
+            var first = fixture.manager().createNote();
+            first.view().editor().setText("Saved along with theme change");
+            fixture.manager().setTheme(org.stickynotefx.theme.ThemeRegistry.Theme.DARK);
+            var second = fixture.manager().createNote();
+            fixture.manager().flush();
+            assertEquals("Saved along with theme change", fixture.repository().findAll().getFirst().content());
+            assertEquals(org.stickynotefx.theme.ThemeRegistry.Theme.DARK,
+                    org.stickynotefx.theme.ThemeRegistry.current(second.view().stage().getScene().getRoot()));
+            assertEquals(org.stickynotefx.theme.ThemeRegistry.Theme.DARK,
+                    new org.stickynotefx.ui.preferences.ProfilePreferences(directory.resolve("visuals.properties")).theme());
+        });
+    }
+
+    @Test
+    void perNoteModesRemainIndependentOfGlobalDefaults() throws Exception {
+        withManager(fixture -> {
+            var first = fixture.manager().createNote();
+            var second = fixture.manager().createNote();
+            fixture.manager().setNotePlayfulSettings(first.note().id(), new PlayfulSettings(true, PlayfulMode.EGG));
+            fixture.manager().setNotePlayfulSettings(second.note().id(), new PlayfulSettings(true, PlayfulMode.TOASTER));
+            fixture.manager().setPlayfulSettings(new PlayfulSettings(true, PlayfulMode.BOMB));
+            assertEquals(PlayfulMode.EGG, first.view().playfulSettings().activeMode());
+            assertEquals(PlayfulMode.TOASTER, second.view().playfulSettings().activeMode());
+            assertEquals(PlayfulMode.BOMB, fixture.manager().createNote().view().playfulSettings().activeMode());
+        });
+    }
+
+    @Test
+    void expiredVisualSurvivesHideAndProfileRestart() throws Exception {
+        withManager(fixture -> {
+            var note = fixture.manager().createNote();
+            fixture.manager().setNotePlayfulSettings(note.note().id(), new PlayfulSettings(true, PlayfulMode.EGG));
+            long due = System.currentTimeMillis() + 60_000;
+            note.setReminder(due);
+            fixture.manager().reminderDelivered(note.note().id(), due);
+            note.view().stage().hide();
+            note.show();
+            assertEquals(PlayfulReminderOverlay.State.FIRED, note.view().playfulOverlay().state());
+            assertFalse(note.view().playfulOverlay().isAnimating());
+            long id = note.note().id();
+            fixture.manager().close();
+            var restored = new NoteManager(fixture.repository(), new Stage(),
+                    new PlayfulSettingsStore(directory.resolve("preferences.properties")));
+            try {
+                restored.restore();
+                assertTrue(restored.controller(id).view().playfulExpired());
+                assertEquals(PlayfulReminderOverlay.State.FIRED, restored.controller(id).view().playfulOverlay().state());
+                assertNull(restored.controller(id).note().reminderTimestamp());
+                assertFalse(restored.controller(id).view().playfulOverlay().isAnimating());
+            } finally {
+                restored.close();
+            }
+        });
+    }
+
+    @Test
+    void snoozeAndClearResetOnlyTheSelectedNotesExpiredState() throws Exception {
+        withManager(fixture -> {
+            var note = fixture.manager().createNote();
+            fixture.manager().setNotePlayfulSettings(note.note().id(), new PlayfulSettings(true, PlayfulMode.BOMB));
+            long due = System.currentTimeMillis() + 60_000;
+            note.setReminder(due);
+            fixture.manager().reminderDelivered(note.note().id(), due);
+            long before = System.currentTimeMillis();
+            note.view().snoozeMenu().getItems().getFirst().fire();
+            assertTrue(note.note().reminderTimestamp() >= before + 300_000);
+            assertTrue(note.note().reminderTimestamp() <= System.currentTimeMillis() + 300_000);
+            assertFalse(note.view().playfulExpired());
+            assertEquals(PlayfulReminderOverlay.State.SCHEDULED, note.view().playfulOverlay().state());
+            note.view().clearReminderItem().fire();
+            assertNull(note.note().reminderTimestamp());
+            assertFalse(note.view().playfulOverlay().isVisible());
+            assertFalse(new org.stickynotefx.ui.preferences.ProfilePreferences(directory.resolve("visuals.properties"))
+                    .note(note.note().id(), PlayfulSettings.DEFAULT).expired());
+        });
+    }
+
+    @Test
+    void quickPresetsAndZonePreviewDoNotChangeSchedulingZone() throws Exception {
+        withManager(fixture -> {
+            var note = fixture.manager().createNote();
+            var dialog = new ReminderDialog(note.view().stage(), null);
+            dialog.show();
+            @SuppressWarnings("unchecked")
+            var preset = (javafx.scene.control.ComboBox<Object>) dialog.getDialogPane().lookup("#reminder-preset");
+            for (int minutes : new int[]{5, 10, 30, 120}) assertTrue(preset.getItems().contains(new ReminderDialog.QuickPreset(minutes)));
+            assertTrue(preset.getItems().contains(org.stickynotefx.reminder.ReminderPreset.ONE_HOUR));
+            preset.setValue(new ReminderDialog.QuickPreset(10));
+            @SuppressWarnings("unchecked")
+            var zone = (javafx.scene.control.ComboBox<String>) dialog.getDialogPane().lookup("#preview-zone");
+            zone.setValue("Asia/Tokyo");
+            assertFalse(((javafx.scene.control.Label) dialog.getDialogPane().lookup("#zone-preview")).getText().isBlank());
+            long before = System.currentTimeMillis();
+            var set = dialog.getDialogPane().getButtonTypes().stream().filter(button -> button.getText().equals("Set reminder")).findFirst().orElseThrow();
+            ((Button) dialog.getDialogPane().lookupButton(set)).fire();
+            assertTrue(dialog.getResult().timestamp() >= before + 600_000);
+            assertTrue(dialog.getResult().timestamp() <= System.currentTimeMillis() + 600_000);
+            assertNull(note.note().reminderTimestamp());
+        });
+    }
+
+    @Test
+    void initialPlacementAvoidsOverlapAndKeepsWindowsOnScreen() throws Exception {
+        withManager(fixture -> {
+            fixture.manager().setSmartPlacement(true);
+            var firstNote = fixture.manager().createNote();
+            var secondNote = fixture.manager().createNote();
+            var desktop = javafx.stage.Screen.getPrimary().getVisualBounds();
+            if (desktop.getWidth() >= 648 && desktop.getHeight() >= 300) {
+            var firstBounds = new javafx.geometry.Rectangle2D(firstNote.note().x(), firstNote.note().y(),
+                firstNote.note().width(), firstNote.note().height());
+            assertFalse(firstBounds.intersects(secondNote.note().x(), secondNote.note().y(),
+                secondNote.note().width(), secondNote.note().height()));
+            }
+            var screen = new javafx.geometry.Rectangle2D(-1200, 0, 1200, 800);
+            var first = WindowPlacement.choose(screen, java.util.List.of());
+            var second = WindowPlacement.choose(screen, java.util.List.of(first));
+            assertFalse(first.intersects(second));
+            assertTrue(screen.contains(first));
+            assertTrue(screen.contains(second));
+            var small = new javafx.geometry.Rectangle2D(0, 0, 200, 150);
+            assertTrue(small.contains(WindowPlacement.choose(small, java.util.List.of())));
+        });
+    }
+
+    @Test
+    void nativeMovesResizeAndOptionalSnapUseExistingMetadata() throws Exception {
+        withManager(fixture -> {
+            var note = fixture.manager().createNote();
+            assertFalse(note.view().snapToGridItem().isSelected());
+            var bounds = javafx.stage.Screen.getPrimary().getVisualBounds();
+            note.view().stage().setX(bounds.getMinX() + 93);
+            note.view().stage().setY(bounds.getMinY() + 107);
+            note.view().stage().setWidth(390);
+            note.flush();
+            assertEquals(bounds.getMinX() + 93, fixture.repository().findAll().getFirst().x());
+            assertEquals(390, fixture.repository().findAll().getFirst().width());
+            note.view().snapToGridItem().setSelected(true);
+            mouse(note.view().dragBar().getChildren().get(1), MouseEvent.MOUSE_RELEASED, 0, 0);
+            note.flush();
+            assertEquals(bounds.getMinX() + 100, fixture.repository().findAll().getFirst().x());
+            assertEquals(bounds.getMinY() + 100, fixture.repository().findAll().getFirst().y());
+        });
+    }
+
+    @Test
+    void themeSwitchPreservesOverlayAndReminderDeadline() throws Exception {
+        withManager(fixture -> {
+            var note = fixture.manager().createNote();
+            fixture.manager().setNotePlayfulSettings(note.note().id(), new PlayfulSettings(true, PlayfulMode.EGG));
+            long timestamp = System.currentTimeMillis() + 3_600_000;
+            note.setReminder(timestamp);
+            var overlay = note.view().playfulOverlay();
+            for (var theme : org.stickynotefx.theme.ThemeRegistry.Theme.values()) {
+                fixture.manager().setTheme(theme);
+                fixture.manager().flush();
+                assertSame(overlay, note.view().playfulOverlay());
+                assertEquals(timestamp, fixture.repository().findAll().getFirst().reminderTimestamp());
+            }
+        });
+    }
+
+    private record Fixture(NoteManager manager, NoteRepository repository) { }
+    @FunctionalInterface private interface FxCheck { void run(Fixture fixture) throws Exception; }
+
+    private void withManager(FxCheck check) throws Exception {
+        FutureTask<Void> task = new FutureTask<>(() -> {
+            try (var database = new DatabaseProvider(directory.resolve("notes.db"))) {
+                var repository = new NoteRepository(database);
+                Stage primary = new Stage();
+                var manager = new NoteManager(repository, primary,
+                        new PlayfulSettingsStore(directory.resolve("preferences.properties")));
+                try {
+                    check.run(new Fixture(manager, repository));
+                } finally {
+                    manager.close();
+                    primary.hide();
+                    for (var window : java.util.List.copyOf(javafx.stage.Window.getWindows())) window.hide();
+                }
+            }
+            return null;
+        });
+        Platform.runLater(task);
+        task.get(20, TimeUnit.SECONDS);
     }
 
     private void verifyDebouncedAutosave() throws Exception {
@@ -173,6 +463,7 @@ class StickyNoteUiTest {
             long timestamp = System.currentTimeMillis() + 3_600_000;
             first.setReminder(timestamp);
             manager.setPlayfulSettings(new PlayfulSettings(true, selected));
+            manager.setNotePlayfulSettings(first.note().id(), new PlayfulSettings(true, selected));
             var overlay = first.view().playfulOverlay();
             assertTrue(overlay.isMouseTransparent());
             assertFalse(overlay.isFocusTraversable());
@@ -194,6 +485,7 @@ class StickyNoteUiTest {
             assertEquals(content, first.view().editor().getText());
             assertEquals(PlayfulReminderOverlay.State.FIRED, overlay.state());
             assertTrue(overlay.isAnimating());
+            manager.setNotePlayfulSettings(first.note().id(), PlayfulSettings.DEFAULT);
             manager.setPlayfulSettings(PlayfulSettings.DEFAULT);
             assertNull(first.view().playfulOverlay());
             assertNull(another.view().playfulOverlay());
@@ -279,9 +571,9 @@ class StickyNoteUiTest {
                             var finished = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(3.3));
                             finished.setOnFinished(done -> {
                                 try {
-                                    assertEquals(PlayfulReminderOverlay.State.NONE, overlay.state());
+                                    assertEquals(PlayfulReminderOverlay.State.FIRED, overlay.state());
                                     assertFalse(overlay.isAnimating());
-                                    assertFalse(overlay.isVisible());
+                                    assertTrue(overlay.isVisible());
                                     controller.setReminder(System.currentTimeMillis() + 3_600_000);
                                     controller.view().stage().hide();
                                     assertFalse(overlay.isAnimating());
