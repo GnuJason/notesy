@@ -1,4 +1,13 @@
 -------------------------------------------------------------------
+Fri Oct 16 02:00:00 UTC 2026 - Notesy maintainers
+
+- Enable Notebook Expand/Restore and integrated Notes sidebar browsing.
+- Share note editing and autosave state across window hosts.
+- Add case-insensitive content search and workspace New Note.
+- Preserve compact geometry and temporarily suppress Notebook pinning.
+- Keep existing reminder behavior and compatibility/error fallbacks.
+
+-------------------------------------------------------------------
 Fri Oct 16 00:00:00 UTC 2026 - Notesy maintainers
 
 - Update local package release to 1.0-2 for UI evolution Phase 1.

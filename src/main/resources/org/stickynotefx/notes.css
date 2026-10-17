@@ -58,3 +58,12 @@
     -fx-shape: "M 5 18 L 18 5 L 18 8 L 8 18 Z M 12 18 L 18 12 L 18 15 L 15 18 Z";
     -fx-scale-shape: false;
 }
+.notes-sidebar {
+    -fx-background-color: -fx-control-inner-background;
+    -fx-border-color: -notesy-border;
+    -fx-border-width: 0 1 0 0;
+}
+.note-workspace {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}

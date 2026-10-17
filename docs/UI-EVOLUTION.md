@@ -3,7 +3,8 @@
 Status: revised design proposal, 2026-10-16. The overall architecture is approved
 in principle; this revision incorporates the subsequent UX steering. Phase 1
 source implementation was subsequently authorized and is recorded below.
-Phases 2-5 remain unimplemented.
+Phases 2-4 were then authorized to make Expand functional and are implemented in
+source, with validation checkpoints between stages. Phase 5 remains deferred.
 
 ## Core UX principle
 
@@ -60,7 +61,7 @@ The supplied screenshot shows the existing separate All Notes window, not the
 custom sticky-note title bar. Native title-bar icons vary with KDE/GNOME themes;
 the new sticky-note minimize control should explicitly use a horizontal line.
 
-## Existing implementation
+## Pre-evolution implementation (baseline)
 
 | Component | Current responsibility | Reuse / change |
 | --- | --- | --- |
@@ -347,9 +348,11 @@ Advanced organization can be considered separately without complicating capture.
    color or reminder change. Use a single FX-thread session state and autosave
    coordinator per ID.
 5. Several hosts can edit one session, but only Quick hosts can propose compact
-   bounds. Keep one canonical compact host per ID; Browser/Notebook views can
-   share its session without competing geometry writers. Closing/detaching a
-   host must not dispose sessions still used by views or reminders.
+   bounds. Bulk showing reuses an existing compact host per ID. If returning
+   from a workspace produces another compact view of an already-open note, both
+   share one session; the latest Quick movement supplies the saved compact
+   bounds. Browser/Notebook geometry never writes those fields. Closing a host
+   must not dispose sessions still used by views or reminders.
 6. Reminder lookup and delivered callbacks currently require a sticky controller.
    Adapt them to sessions without changing relative choices, explicit date/time,
    timezone conversion, scheduler/retry logic, status, expired-state cleanup,
@@ -371,7 +374,7 @@ Advanced organization can be considered separately without complicating capture.
 
 ### Phase 1: window semantics and controls
 
-Source implementation status:
+Phase 1 delivery record (superseded by the later stages below):
 
 - Sticky-note X now saves and hides only its stage; the compatibility browser
   also hides without implicitly quitting when empty.
@@ -428,6 +431,11 @@ usable at 260 pixels. No session extraction or MainWindow demolition yet.
 
 ### Phase 2: shared state extraction
 
+Implemented checkpoint: NoteSession owns the authoritative snapshot, save status
+and autosave timer; NoteEditorView has no stage ownership. The original controller
+and view names are retained for window-host responsibilities. Nineteen native UI
+tests passed before introducing browsing, including shared-editor synchronization.
+
 - Introduce one authoritative NoteSession per note ID and extract NoteEditorView
   from stage ownership. Keep the current compact and compatibility interfaces.
 - Move autosave/content/reminder updates into sessions; prove simultaneous-view
@@ -436,6 +444,12 @@ usable at 260 pixels. No session extraction or MainWindow demolition yet.
   No sidebar dependency until shared state is stable.
 
 ### Phase 3: integrated Browser
+
+Implemented checkpoint: Notes opens a same-stage SplitPane with NotesSidebarView;
+selection and creation edit in place. Twenty-two native UI tests passed before
+enabling Notebook. MainWindow is retained for explicit error/compatibility paths,
+but Notes and application/second-instance/`--all-notes` activation use integrated
+browsing. Empty workspaces remain usable without creating notes on activation.
 
 - Introduce NotesSidebarView, reusing list previews, selection and useful commands.
 - Notes expands the current stage and retains its selected editor/content.
@@ -447,6 +461,22 @@ usable at 260 pixels. No session extraction or MainWindow demolition yet.
   verified; retain MainWindow as a compatibility fallback.
 
 ### Phase 4: Notebook
+
+Implemented: Expand is an enabled button rather than a disabled drag-area
+placeholder. It fills available screen bounds in the existing undecorated stage,
+with a persistent sidebar and content search, without exclusive fullscreen.
+Restore recovers the prior presentation, selection and appropriate geometry.
+The sidebar is capped at 300 logical pixels so a large workspace remains mostly
+editor space. Pin preference is shared per session but stage always-on-top is
+suppressed in Notebook. Required save failures abort transitions.
+
+The native UI suite now includes 27 cases, including expanded/restore geometry,
+body-content search, no-result editing, mode-specific New Note, bulk showing,
+all themes and reminder artwork in Notebook, quiet close/minimize and activation.
+Unhandled JavaFX-thread exceptions now fail tests instead of merely printing.
+Snapshots are generated under target/ui-snapshots.
+All 27 passed with JDK 21 and the repaired system JavaFX libraries without
+LD_PRELOAD; Browser/Notebook snapshots were inspected.
 
 - Enable Expand/Restore into a maximized or appropriately large, non-fullscreen
   workspace with a persistent sidebar and larger editor.
@@ -491,9 +521,9 @@ Retain and extend the existing repository, reminder and native
   X11/Wayland where practical, focus preservation, accessible names/tooltips,
   and actual usability at the existing 260-pixel compact minimum.
 
-Phase 1 is authorized; review its results before proceeding to shared-state
-extraction. Later phases require their own acceptance evidence rather than one
-large rewrite.
+Phases 1-4 are authorized and implemented in source. Review the working Notebook
+before Phase 5 cleanup; do not remove the remaining fallback paths automatically.
 
-This document records the phased design and Phase 1 source implementation status.
-The database schema, launchers, packaging and installed application are unchanged.
+This document records the phased design and implementation status. The database
+schema, reminder scheduling algorithms and launcher are unchanged. Installing a
+new package is required to update the desktop application.

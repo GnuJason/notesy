@@ -46,13 +46,7 @@ public final class MainWindow {
                 if (empty || note == null) {
                     setGraphic(null);
                 } else {
-                    String text = note.content().lines().filter(line -> !line.isBlank()).findFirst().orElse("Blank note");
-                    Label title = new Label(text.length() > 80 ? text.substring(0, 80) + "..." : text);
-                    title.setMaxWidth(280);
-                    HBox row = new HBox(10, new Circle(6, Color.web(note.color())), title);
-                    row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-                    row.setPadding(new Insets(8, 2, 8, 2));
-                    setGraphic(row);
+                    setGraphic(preview(note));
                 }
             }
         });
@@ -75,6 +69,18 @@ public final class MainWindow {
             event.consume();
             stage.hide();
         });
+    }
+
+    static HBox preview(Note note) {
+        String text = note.content().lines().filter(line -> !line.isBlank()).findFirst().orElse("Blank note");
+        Label title = new Label(text.length() > 80 ? text.substring(0, 80) + "..." : text);
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(title, javafx.scene.layout.Priority.ALWAYS);
+        HBox row = new HBox(10, new Circle(6, Color.web(note.color())), title);
+        row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        row.setPadding(new Insets(8, 2, 8, 2));
+        return row;
     }
 
     public void update(List<Note> values) {

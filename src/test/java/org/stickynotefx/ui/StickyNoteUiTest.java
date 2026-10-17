@@ -37,17 +37,31 @@ import static org.junit.jupiter.api.Assertions.*;
 class StickyNoteUiTest {
     @TempDir Path directory;
     private static boolean toolkitStarted;
+    private static final java.util.Queue<Throwable> uiFailures = new java.util.concurrent.ConcurrentLinkedQueue<>();
 
     @org.junit.jupiter.api.BeforeAll
     static void startToolkit() throws Exception {
         CountDownLatch ready = new CountDownLatch(1);
-        Platform.startup(() -> { Platform.setImplicitExit(false); ready.countDown(); });
+        Platform.startup(() -> {
+            Platform.setImplicitExit(false);
+            Thread.currentThread().setUncaughtExceptionHandler((thread, failure) -> uiFailures.add(failure));
+            ready.countDown();
+        });
         assertTrue(ready.await(15, TimeUnit.SECONDS));
         toolkitStarted = true;
     }
 
     @org.junit.jupiter.api.AfterAll
     static void stopToolkit() { if (toolkitStarted) Platform.exit(); }
+
+    @org.junit.jupiter.api.AfterEach
+    void rejectUnhandledUiFailures() {
+        Throwable first = uiFailures.poll();
+        if (first != null) {
+            uiFailures.clear();
+            throw new AssertionError("Unhandled JavaFX failure", first);
+        }
+    }
 
     @Test
     void editsBoundsColorsRemindersAndDeletionSurviveLifecycle() throws Exception {
@@ -299,6 +313,39 @@ class StickyNoteUiTest {
     }
 
     @Test
+    void sharedSessionSynchronizesEditorsAndSurvivesClosingOneHost() throws Exception {
+        withManager(fixture -> {
+            var writes = new java.util.concurrent.atomic.AtomicInteger();
+            var saved = new java.util.concurrent.atomic.AtomicReference<Note>();
+            var session = new NoteSession(Note.blank(100, 100), note -> {
+                writes.incrementAndGet();
+                saved.set(note);
+            });
+            var first = new StickyNoteController(session);
+            var second = new StickyNoteController(session);
+            try {
+                first.view().editor().setText("First edit");
+                assertEquals("First edit", second.view().editor().getText());
+                second.view().editor().appendText(" then newer edit");
+                assertEquals("First edit then newer edit", first.view().editor().getText());
+                first.flush();
+                assertEquals(1, writes.get());
+                assertEquals("First edit then newer edit", saved.get().content());
+                first.dispose();
+                second.view().editor().setText("Still editable after the other host closes");
+                second.setReminder(System.currentTimeMillis() + 3_600_000);
+                assertEquals(2, writes.get());
+                assertEquals(second.view().editor().getText(), saved.get().content());
+                assertNotNull(saved.get().reminderTimestamp());
+            } finally {
+                first.dispose();
+                second.dispose();
+                session.close();
+            }
+        });
+    }
+
+    @Test
     void closeSavesWithoutOpeningBrowserAndExplicitNavigationRecoversNotes() throws Exception {
         withManager(fixture -> {
             var first = fixture.manager().createNote();
@@ -322,18 +369,20 @@ class StickyNoteUiTest {
             fixture.manager().show(first.note().id());
             first.view().notesButton().fire();
             assertTrue(first.view().stage().isShowing(), "Browsing must not close the current note");
-            assertTrue(fixture.primary().isShowing());
-            var options = (MenuButton) fixture.primary().getScene().getRoot().lookup(".menu-button");
+            assertEquals(StickyNoteController.Mode.BROWSER, first.mode());
+            assertFalse(fixture.primary().isShowing());
+            var options = first.view().optionsMenu();
             var showAll = options.getItems().stream()
                     .filter(item -> "show-all-sticky-notes".equals(item.getId())).findFirst().orElseThrow();
             assertEquals("Show all sticky notes", showAll.getText());
             showAll.fire();
             assertTrue(second.view().stage().isShowing());
-            fixture.primary().fireEvent(new javafx.stage.WindowEvent(fixture.primary(),
+            first.view().stage().fireEvent(new javafx.stage.WindowEvent(first.view().stage(),
                     javafx.stage.WindowEvent.WINDOW_CLOSE_REQUEST));
-            assertFalse(fixture.primary().isShowing());
+            assertFalse(first.view().stage().isShowing());
             first.view().managerItem().fire();
-            assertTrue(fixture.primary().isShowing(), "The legacy browsing route must remain available");
+            fixture.manager().showManager();
+            assertTrue(first.view().stage().isShowing(), "Legacy activation must reach integrated browsing");
         });
     }
 
@@ -478,9 +527,290 @@ class StickyNoteUiTest {
             }
             var header = view.dragBar().getChildren();
             assertEquals(header.indexOf(view.minimizeButton()) + 1, header.indexOf(view.closeButton()));
-            assertTrue(view.expandButton().isDisabled());
-            assertTrue(view.expandButton().getTooltip().getText().contains("not available yet"));
+            assertFalse(view.expandButton().isDisabled());
+            assertEquals("Expand to Notebook", view.expandButton().getTooltip().getText());
             assertFalse(view.notesButton().isDisabled());
+        });
+    }
+
+    @Test
+    void browserSelectsAndCreatesInPlaceWithSharedEditsAndCompactGeometry() throws Exception {
+        withManager(fixture -> {
+            var first = fixture.manager().createNote();
+            var second = fixture.manager().createNote();
+            first.view().editor().setText("First note before browsing");
+            second.view().editor().setText("Older note to edit");
+            Note compact = first.note();
+            int windows = javafx.stage.Window.getWindows().size();
+            first.view().notesButton().fire();
+            assertEquals(StickyNoteController.Mode.BROWSER, first.mode());
+            assertEquals(windows, javafx.stage.Window.getWindows().size());
+            assertEquals(compact, first.note(), "Browser geometry must not replace compact bounds");
+            assertEquals("First note before browsing", first.view().editor().getText());
+            first.view().sidebar().list().getSelectionModel().select(second.session());
+            assertSame(second.session(), first.session());
+            first.view().editor().setText("Updated without another popup");
+            assertEquals("Updated without another popup", second.view().editor().getText());
+            assertEquals(windows, javafx.stage.Window.getWindows().size());
+            first.flush();
+            assertEquals("Updated without another popup", fixture.repository().findAll().getLast().content());
+            first.view().sidebar().newNoteButton().fire();
+            assertEquals(3, fixture.repository().findAll().size());
+            assertEquals(windows, javafx.stage.Window.getWindows().size());
+            assertEquals("", first.view().editor().getText());
+            assertEquals(StickyNoteController.Mode.BROWSER, first.mode());
+            Note newCompact = first.note();
+            first.view().notesButton().fire();
+            assertEquals(StickyNoteController.Mode.QUICK, first.mode());
+            assertEquals(newCompact.width(), first.view().stage().getWidth(), 1);
+            assertEquals(newCompact.height(), first.view().stage().getHeight(), 1);
+        });
+    }
+
+    @Test
+    void browserDeletionKeepsEmptyWorkspaceAndActivationDoesNotCreateNotes() throws Exception {
+        withManager(fixture -> {
+            var note = fixture.manager().createNote();
+            note.browse();
+            fixture.manager().delete(note.note().id());
+            assertTrue(note.view().stage().isShowing());
+            assertNull(note.note());
+            assertTrue(note.view().editor().isDisabled());
+            assertTrue(note.view().sidebar().list().getItems().isEmpty());
+            int windows = javafx.stage.Window.getWindows().size();
+            fixture.manager().showManager();
+            assertTrue(fixture.repository().findAll().isEmpty());
+            assertEquals(windows, javafx.stage.Window.getWindows().size());
+            note.view().sidebar().newNoteButton().fire();
+            assertEquals(1, fixture.repository().findAll().size());
+            assertFalse(note.view().editor().isDisabled());
+            assertEquals(windows, javafx.stage.Window.getWindows().size());
+        });
+    }
+
+    @Test
+    void failedBrowserSelectionRetainsOutgoingSessionAndText() throws Exception {
+        withManager(fixture -> {
+            var first = fixture.manager().createNote();
+            var second = fixture.manager().createNote();
+            first.browse();
+            first.view().editor().setText("Must not leave this editor on save failure");
+            try (var connection = java.sql.DriverManager.getConnection("jdbc:sqlite:" + directory.resolve("notes.db"));
+                 var statement = connection.createStatement()) {
+                statement.execute("""
+                        CREATE TRIGGER fail_note_update BEFORE UPDATE ON notes
+                        BEGIN SELECT RAISE(FAIL, 'Read-only test storage'); END
+                        """);
+                try {
+                    assertThrows(IllegalStateException.class, () -> first.selectSession(second.session()));
+                    assertNotSame(second.session(), first.session());
+                    assertEquals("Must not leave this editor on save failure", first.view().editor().getText());
+                    assertTrue(first.view().stage().isShowing());
+                } finally {
+                    statement.execute("DROP TRIGGER fail_note_update");
+                }
+            }
+        });
+    }
+
+    @Test
+    void notebookExpandsAndRestoresWithoutChangingCompactBoundsSelectionOrPin() throws Exception {
+        withManager(fixture -> {
+            var note = fixture.manager().createNote();
+            note.view().editor().setText("A notebook keeps the same selected note");
+            note.view().editor().selectRange(2, 12);
+            note.view().pinButton().fire();
+            Note compact = note.note();
+            var editor = note.view().editor();
+            var screen = javafx.stage.Screen.getScreensForRectangle(
+                    note.view().stage().getX(), note.view().stage().getY(), 1, 1).getFirst().getVisualBounds();
+            note.view().expandButton().fire();
+            awaitWindowState(() -> Math.abs(screen.getWidth() - note.view().stage().getWidth()) <= 2
+                            && Math.abs(screen.getHeight() - note.view().stage().getHeight()) <= 2,
+                    "Notebook did not fill the available desktop");
+            assertEquals(StickyNoteController.Mode.NOTEBOOK, note.mode());
+            assertSame(editor, note.view().editor());
+            assertTrue(note.view().sidebar().searchField().getParent().isVisible());
+            assertFalse(note.view().stage().isFullScreen());
+            assertEquals(screen.getWidth(), note.view().stage().getWidth(), 2);
+            assertEquals(screen.getHeight(), note.view().stage().getHeight(), 2);
+            assertEquals(compact, note.note());
+            assertEquals(2, editor.getSelection().getStart());
+            assertEquals(12, editor.getSelection().getEnd());
+            assertFalse(note.view().stage().isAlwaysOnTop());
+            assertTrue(note.view().pinButton().isSelected());
+            assertTrue(note.view().pinButton().isDisabled());
+            capture(note, "notebook-workspace.png");
+            for (Node node : note.view().sidebar().list().lookupAll(".scroll-bar")) {
+                if (node instanceof javafx.scene.control.ScrollBar bar
+                        && bar.getOrientation() == javafx.geometry.Orientation.HORIZONTAL)
+                    assertFalse(bar.isVisible(), "Note previews must fit the vertically scrollable collection");
+            }
+            note.view().expandButton().fire();
+            awaitWindowState(() -> Math.abs(compact.width() - note.view().stage().getWidth()) <= 1
+                            && Math.abs(compact.height() - note.view().stage().getHeight()) <= 1,
+                    "Restore did not recover compact dimensions");
+            assertEquals(StickyNoteController.Mode.QUICK, note.mode());
+            assertEquals(compact, note.note());
+            assertEquals(compact.width(), note.view().stage().getWidth(), 1);
+            assertEquals(compact.height(), note.view().stage().getHeight(), 1);
+            assertTrue(note.view().stage().isAlwaysOnTop());
+            assertFalse(note.view().pinButton().isDisabled());
+            note.browse();
+            awaitWindowState(() -> note.view().stage().getScene().getWidth() >= 560
+                            && Math.abs(note.view().stage().getWidth() - note.view().stage().getScene().getWidth()) <= 1,
+                    "Browser scene did not reach its expanded dimensions");
+            double browserWidth = note.view().stage().getWidth();
+            double browserHeight = note.view().stage().getHeight();
+            capture(note, "integrated-browser.png");
+            note.expand();
+            note.restore();
+            awaitWindowState(() -> Math.abs(browserWidth - note.view().stage().getWidth()) <= 1
+                            && Math.abs(browserHeight - note.view().stage().getHeight()) <= 1,
+                    "Restore did not recover Browser dimensions");
+            assertEquals(StickyNoteController.Mode.BROWSER, note.mode());
+            assertEquals(browserWidth, note.view().stage().getWidth(), 1);
+            assertEquals(browserHeight, note.view().stage().getHeight(), 1);
+            assertFalse(note.view().sidebar().searchField().getParent().isManaged());
+            assertEquals(compact, note.note());
+        });
+    }
+
+    @Test
+    void notebookSearchFiltersContentWithoutNavigatingAndNewNoteStaysInWorkspace() throws Exception {
+        withManager(fixture -> {
+            var first = fixture.manager().createNote();
+            var second = fixture.manager().createNote();
+            first.view().editor().setText("Alpha\nFind a kiwi in the body");
+            second.view().editor().setText("Beta notebook");
+            first.expand();
+            int windows = javafx.stage.Window.getWindows().size();
+            var sidebar = first.view().sidebar();
+            sidebar.searchField().setText("KiWi");
+            assertEquals(java.util.List.of(first.session()), sidebar.list().getItems());
+            sidebar.searchField().setText("bEtA");
+            assertEquals(java.util.List.of(second.session()), sidebar.list().getItems());
+            assertEquals("Alpha\nFind a kiwi in the body", first.view().editor().getText());
+            sidebar.list().getSelectionModel().select(second.session());
+            assertSame(second.session(), first.session());
+            first.view().editor().setText("No longer matches the search");
+            assertTrue(sidebar.list().getItems().isEmpty());
+            assertSame(second.session(), first.session(), "Filtering must not replace the editor");
+            assertEquals("No longer matches the search", second.view().editor().getText());
+            sidebar.searchField().clear();
+            assertEquals(2, sidebar.list().getItems().size());
+            assertSame(second.session(), sidebar.list().getSelectionModel().getSelectedItem());
+            sidebar.searchField().setText("no results anywhere");
+            assertTrue(sidebar.list().getItems().isEmpty());
+            sidebar.newNoteButton().fire();
+            assertEquals("", sidebar.searchField().getText());
+            assertEquals(3, sidebar.list().getItems().size());
+            assertEquals("", first.view().editor().getText());
+            assertEquals(StickyNoteController.Mode.NOTEBOOK, first.mode());
+            assertEquals(windows, javafx.stage.Window.getWindows().size());
+            assertEquals(3, fixture.repository().findAll().size());
+            fixture.manager().showManager();
+            assertEquals(StickyNoteController.Mode.NOTEBOOK, first.mode(),
+                    "Activation must preserve an existing Notebook workspace");
+        });
+    }
+
+    @Test
+    void failedNotebookTransitionsLeaveCurrentModeAndEditingStateVisible() throws Exception {
+        withManager(fixture -> {
+            var note = fixture.manager().createNote();
+            note.view().editor().setText("Save this before changing workspace");
+            try (var connection = java.sql.DriverManager.getConnection("jdbc:sqlite:" + directory.resolve("notes.db"));
+                 var statement = connection.createStatement()) {
+                statement.execute("""
+                        CREATE TRIGGER fail_note_update BEFORE UPDATE ON notes
+                        BEGIN SELECT RAISE(FAIL, 'Read-only test storage'); END
+                        """);
+                try {
+                    assertThrows(IllegalStateException.class, note::expand);
+                    assertEquals(StickyNoteController.Mode.QUICK, note.mode());
+                    assertTrue(note.view().stage().isShowing());
+                } finally {
+                    statement.execute("DROP TRIGGER fail_note_update");
+                }
+                note.expand();
+                note.view().editor().setText("Also save before Restore");
+                statement.execute("""
+                        CREATE TRIGGER fail_note_update BEFORE UPDATE ON notes
+                        BEGIN SELECT RAISE(FAIL, 'Read-only test storage'); END
+                        """);
+                try {
+                    assertThrows(IllegalStateException.class, note::restore);
+                    assertEquals(StickyNoteController.Mode.NOTEBOOK, note.mode());
+                    assertEquals("Also save before Restore", note.view().editor().getText());
+                    assertTrue(note.view().stage().isShowing());
+                } finally {
+                    statement.execute("DROP TRIGGER fail_note_update");
+                }
+            }
+        });
+    }
+
+    @Test
+    void showAllCreatesCompactHostsWithoutConvertingNotebookOrDuplicatingWriters() throws Exception {
+        withManager(fixture -> {
+            var notebook = fixture.manager().createNote();
+            var other = fixture.manager().createNote();
+            long id = notebook.note().id();
+            notebook.expand();
+            int windows = javafx.stage.Window.getWindows().size();
+            fixture.manager().showAll();
+            assertEquals(StickyNoteController.Mode.NOTEBOOK, notebook.mode());
+            assertEquals(windows + 1, javafx.stage.Window.getWindows().size());
+            other.view().closeButton().fire();
+            fixture.manager().showAll();
+            assertEquals(windows + 1, javafx.stage.Window.getWindows().size());
+            assertTrue(other.view().stage().isShowing());
+            notebook.view().editor().setText("Shared between compact and Notebook");
+            notebook.flush();
+            assertEquals("Shared between compact and Notebook",
+                    fixture.repository().findAll().stream().filter(note -> note.id() == id).findFirst().orElseThrow().content());
+        });
+    }
+
+    @Test
+    void notebookRetainsThemesRemindersAndQuietWindowActions() throws Exception {
+        withManager(fixture -> {
+            var first = fixture.manager().createNote();
+            var second = fixture.manager().createNote();
+            first.view().editor().setText("Preserve this content in every presentation");
+            first.expand();
+            for (var theme : org.stickynotefx.theme.ThemeRegistry.Theme.values()) {
+                fixture.manager().setTheme(theme);
+                assertEquals(theme, org.stickynotefx.theme.ThemeRegistry.current(
+                        first.view().stage().getScene().getRoot()));
+                for (var mode : new PlayfulMode[]{PlayfulMode.EGG, PlayfulMode.BOMB, PlayfulMode.TOASTER}) {
+                    fixture.manager().setNotePlayfulSettings(first.note().id(), new PlayfulSettings(true, mode));
+                    long timestamp = System.currentTimeMillis() + 3_600_000;
+                    first.setReminder(timestamp);
+                    assertEquals(timestamp, first.note().reminderTimestamp());
+                    fixture.manager().reminderDelivered(first.note().id(), timestamp);
+                    assertTrue(first.view().playfulExpired());
+                    assertNull(first.note().reminderTimestamp());
+                    assertEquals(PlayfulReminderOverlay.State.FIRED, first.view().playfulOverlay().state());
+                }
+            }
+            first.view().minimizeButton().fire();
+            awaitIconified(first.view().stage(), true);
+            assertFalse(first.view().playfulOverlay().isAnimating());
+            assertFalse(second.view().stage().isIconified());
+            first.show();
+            awaitIconified(first.view().stage(), false);
+            assertEquals(StickyNoteController.Mode.NOTEBOOK, first.mode());
+            first.view().closeButton().fire();
+            assertFalse(first.view().stage().isShowing());
+            assertTrue(second.view().stage().isShowing());
+            assertFalse(fixture.primary().isShowing());
+            assertEquals("Preserve this content in every presentation",
+                    fixture.repository().findAll().getFirst().content());
+            fixture.manager().showManager();
+            assertTrue(first.view().stage().isShowing());
+            assertEquals(StickyNoteController.Mode.NOTEBOOK, first.mode());
         });
     }
 
@@ -593,12 +923,17 @@ class StickyNoteUiTest {
     @FunctionalInterface private interface FxCheck { void run(Fixture fixture) throws Exception; }
 
     private static void awaitIconified(Stage stage, boolean expected) {
+        awaitWindowState(() -> stage.isIconified() == expected,
+                "Window manager did not reach iconified=" + expected);
+    }
+
+    private static void awaitWindowState(java.util.function.BooleanSupplier ready, String message) {
         Object key = new Object();
         var check = new javafx.animation.Timeline();
         var timeout = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(5));
         check.getKeyFrames().add(new javafx.animation.KeyFrame(
                 javafx.util.Duration.millis(50), event -> {
-                    if (stage.isIconified() == expected) {
+                    if (ready.getAsBoolean()) {
                         check.stop();
                         timeout.stop();
                         Platform.exitNestedEventLoop(key, true);
@@ -612,8 +947,7 @@ class StickyNoteUiTest {
         check.play();
         timeout.play();
         try {
-            assertEquals(Boolean.TRUE, Platform.enterNestedEventLoop(key),
-                    "Window manager did not reach iconified=" + expected);
+            assertEquals(Boolean.TRUE, Platform.enterNestedEventLoop(key), message);
         } finally {
             check.stop();
             timeout.stop();

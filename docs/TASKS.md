@@ -74,5 +74,11 @@ the corresponding local build and test commands.
   retain the compatibility browser, stage disabled Expand, and label the bulk
   action Show all sticky notes. Verify minimum-width controls, save failures,
   quiet close, minimize and deliberate recovery with native UI tests.
-- [ ] UI-PHASE-2: Extract shared NoteSession and stage-independent NoteEditorView
-  after Phase 1 review. See [the phased proposal](UI-EVOLUTION.md) for later gates.
+- [x] UI-PHASE-2: Extract shared NoteSession and stage-independent NoteEditorView;
+  prove multiple editors share one save state and survive host disposal.
+- [x] UI-PHASE-3: Integrate NotesSidebarView, same-host selection and New Note,
+  retain independent bulk showing and compatibility/error fallback.
+- [x] UI-PHASE-4: Enable Notebook Expand/Restore, content search, independent
+  compact geometry and temporary always-on-top suppression.
+- [ ] UI-PHASE-5: Review activation/error fallbacks and decide whether MainWindow
+  can be retired. See [the phased proposal](UI-EVOLUTION.md).

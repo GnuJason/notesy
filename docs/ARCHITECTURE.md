@@ -5,8 +5,11 @@
 | Layer | Owner | Contract |
 | --- | --- | --- |
 | Application | `StickyNoteApplication` | XDG data path, single-instance lock, startup, shutdown and error reporting |
-| Note windows | `StickyNoteView`, `StickyNoteController` | Transparent JavaFX stage, text, swatches, drag, resize, debounce, flush |
-| Multiple notes | `NoteManager`, `MainWindow` | CRUD orchestration, stacking, restoration, deletion, reminder UI integration |
+| Note state | `NoteSession` | One authoritative snapshot and 400 ms autosave writer per note ID, shared save status and session pin state |
+| Note editor | `NoteEditorView` | Stage-independent text, status, resize grip and playful footer |
+| Note windows | `StickyNoteView`, `StickyNoteController` | Stage ownership, shared-session attachment, Quick/Browser/Notebook modes, compact geometry and save-before-transition |
+| Navigation | `NotesSidebarView` | Shared collection, previews, in-place selection, New Note and Notebook content filtering |
+| Multiple notes | `NoteManager`, `MainWindow` | Independent session/window registries, CRUD, activation, reminders; MainWindow retained as an error/compatibility fallback |
 | Model | `Note` | Immutable note snapshots with sanitized colors and minimum dimensions |
 | Persistence | `DatabaseProvider`, `NoteRepository` | SQLite schema, parameterized CRUD, conditional reminder clear |
 | Reminders | `ReminderService`, `ReminderScheduler`, `DesktopNotifier` | Calendar presets, due dispatch, notification process and retries |
@@ -19,6 +22,37 @@ state. A daemon scheduler checks wall-clock due times once a second and dispatch
 the UI thread. A separate single daemon executor runs `notify-send`, bounded by a
 10-second process timeout. No shell interprets note text. SQLite operations are small,
 synchronous and serialized; autosave is debounced to reduce write frequency.
+
+## Presentation And Shared Editing
+
+Each note ID has one NoteSession, regardless of the number of attached editors.
+Views submit changes against its current immutable Note, observe updates, and
+avoid recursive text notifications. Detaching a window removes its subscriptions
+without closing a shared session. Deletion stops the session's pending save;
+application shutdown flushes sessions once before disposing their windows.
+
+Notes expands the existing host into a sidebar/editor Browser. Expand creates a
+Notebook presentation in the same stage, sized to the screen's available visual
+bounds rather than exclusive fullscreen. Restore returns to the previous mode.
+Only Quick Note geometry updates the existing SQLite bounds fields; Browser and
+Notebook sizing is session-local. Multiple compact views share the same saved
+bounds, updated by the most recently moved/resized Quick host.
+
+Sidebar selection saves the outgoing session before switching and restores its
+per-host text selection when revisited. A failed save leaves the previous editor
+in place. Notebook search filters loaded content case-insensitively and never
+replaces an editor merely because its note is filtered out. New Note clears the
+search and edits in place in workspaces, while Quick Note retains its separate
+sticky-window creation behavior. Recency is session-only; no timestamp column or
+database migration is introduced.
+
+X saves and hides only its host; it never opens/focuses another window. Minimize
+saves and iconifies only that host. Explicit application activation and
+`--all-notes` recover integrated browsing, preserving an existing Notebook.
+Show all sticky notes separately reuses or creates compact hosts without changing
+an existing workspace. MainWindow remains available for error reporting and
+compatibility during migration. Notebook suppresses stage always-on-top while
+retaining the selected session's pin choice for return to Quick Note.
 
 Each pending timer has its own identity. Cancelling or replacing a timer invalidates
 callbacks already queued for UI dispatch. Text autosaves do not restart unchanged
@@ -72,7 +106,7 @@ cleanup can leave stale on-disk entries; an error is reported, and new note crea
 discards any reused ID in memory and attempts to remove its stored visual settings.
 Standard reminders with no visual override do not create this file.
 
-`StickyNoteView` owns a mouse-transparent overlay in a 72 x 48 logical-pixel footer
+`NoteEditorView` owns a mouse-transparent overlay in a 72 x 48 logical-pixel footer
 slot, separate from the editor, drag bar, resize grip and reminder dialog. The slot
 is absent when disabled or idle without a reminder. `EggOverlay`, `BombOverlay` and
 `ToasterOverlay` share a disposable `PlayfulReminderOverlay` lifecycle:
@@ -80,7 +114,7 @@ is absent when disabled or idle without a reminder. `EggOverlay`, `BombOverlay` 
 - Scheduled: static artwork and a one-shot wait until near the deadline.
 - Pending: one brief wobble; no continuously running countdown or flashing.
 - Delivered: finite reveal/pop followed by static expired artwork, with no running animation.
-- Cancelled, hidden, disabled or disposed: stop all transitions and callbacks.
+- Cancelled, hidden, minimized, disabled or disposed: stop all transitions and callbacks.
 
 The existing `reminderDelivered` callback remains conditional on the note's current
 timestamp and successful database clear. Only then does the view animate. A failed

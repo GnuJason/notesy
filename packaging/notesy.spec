@@ -2,7 +2,7 @@
 
 Name:           notesy
 Version:        1.0
-Release:        2
+Release:        3
 Summary:        Native desktop sticky notes with reminders
 Group:          Productivity/Office/Other
 BuildArch:      noarch
@@ -63,6 +63,11 @@ appstream-util validate-relax --nonet %{buildroot}%{_datadir}/metainfo/%{name}.a
 %{_datadir}/icons/hicolor/*x*/apps/%{name}.png
 
 %changelog
+* Fri Oct 16 2026 Notesy maintainers - 1.0-3
+- Enable integrated Browser and Notebook Expand/Restore with content search.
+- Share note editing and autosave state across window hosts.
+- Preserve compact bounds, reminders, themes and sticky-note pin preferences.
+
 * Fri Oct 16 2026 Notesy maintainers - 1.0-2
 - Save and close notes without opening the notes browser.
 - Add minimize, persistent browsing and staged workspace controls.
