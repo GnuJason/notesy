@@ -1,4 +1,14 @@
 -------------------------------------------------------------------
+Fri Oct 16 00:00:00 UTC 2026 - Notesy maintainers
+
+- Update local package release to 1.0-2 for UI evolution Phase 1.
+- Save and close notes without opening or focusing a browser window.
+- Add minimize beside close, persistent Browse notes, and disabled
+  Expand with an explanatory tooltip.
+- Retain compatibility browsing and distinguish Show all sticky notes.
+- Include the phased UI design in packaged documentation.
+
+-------------------------------------------------------------------
 Sat Sep 26 00:00:00 UTC 2026 - Notesy maintainers
 
 - Keep version 1.0; v1.2 features remain staged, not a released version.

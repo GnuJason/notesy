@@ -26,6 +26,17 @@ VS Code build, run, test, metadata and archive tasks are in `.vscode/tasks.json`
 - Use `+` for another note, the timer icon for a reminder, and the visible pin to
   keep a note on top. The options menu contains color swatches, handwritten fonts,
   reminder visuals, all notes, deletion and quit.
+- The list icon (**Browse notes**) opens the existing non-modal notes browser
+  without closing the current note. **Show all sticky notes**, in the browser's
+  options menu, explicitly shows the individual sticky windows instead.
+- The horizontal line beside X saves and minimizes only the current note.
+  X saves and hides only that note; it never opens or focuses the browser.
+  Save failures leave the note visible. Closing the last visible window does
+  not quit Notesy: use the application-menu entry again to reach saved notes.
+  Use **Quit Notesy** / **Quit** to save and exit explicitly.
+- The Expand icon is a disabled development placeholder with an explanatory
+  tooltip; integrated Browser and Notebook modes are not implemented yet.
+  See the [UI evolution proposal](docs/UI-EVOLUTION.md) for the phased design.
 - Handwritten text is enabled when Chilanka, Patrick Hand, or Comic Sans MS is installed.
 - Changes autosave after 400 ms; pending edits are flushed when a window closes or
   the app quits. Closing a note hides it; deletion requires confirmation.
@@ -127,7 +138,7 @@ end-to-end delivery check; it sends one test notification. It verifies all visua
 modes, preference controls, cross-window updates, animation cleanup, non-clipping,
 focus preservation, and unchanged note content. PNGs are written to
 `target/ui-snapshots`. On an active desktop, omit `xvfb-run`.
-There are 12 native UI test cases, separate from the repository, scheduler and
+There are 18 native UI test cases, separate from the repository, scheduler and
 preferences unit tests. Run all of them with
 `STICKYNOTEFX_UI_TEST=1 mvn clean verify` on an active desktop.
 

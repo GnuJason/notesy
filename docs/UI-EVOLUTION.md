@@ -1,7 +1,26 @@
 # Notesy UI evolution
 
-Status: proposal for review, saved 2026-10-16. No application changes approved
-or implemented. The minimize control is included in this proposal, not implemented.
+Status: revised design proposal, 2026-10-16. The overall architecture is approved
+in principle; this revision incorporates the subsequent UX steering. Phase 1
+source implementation was subsequently authorized and is recorded below.
+Phases 2-5 remain unimplemented.
+
+## Core UX principle
+
+**Closing is not navigation. Browsing notes is navigation. Expanding is a
+workspace transition.**
+
+```text
+Quick Note --Notes--> Browser --Expand--> Notebook
+
+_                    minimize the current window
+X                    save and close/hide the current window, nothing else
+Show all sticky notes explicitly show individual sticky windows
+Quit                 save and exit Notesy
+```
+
+These actions must remain independent. In particular, closing a window must not
+open, reveal, focus, or reopen any other Notesy window.
 
 ## Saved requirements
 
@@ -22,6 +41,17 @@ or implemented. The minimize control is included in this proposal, not implement
   **Quick capture -> Browse notes -> Full writing workspace.**
 - Reveal advanced controls progressively; do not cover the compact note with
   application toolbars.
+- X saves and closes/hides only the current window. If saving fails, keep its
+  text visible and report the failure. No browser or management-window recovery
+  is triggered by closing, including closing the last visible note.
+- Minimize uses a horizontal line immediately beside X and iconifies only the
+  current window after any required save succeeds.
+- Keep MainWindow as transitional compatibility functionality. Retirement is
+  optional cleanup after activation/navigation replacements are proven, not a
+  prerequisite for the first milestone.
+- Preserve the relative reminder choices, explicit date/time and timezone
+  behavior, Egg/Bomb/Toaster visuals, status, cleanup and persistence. No visual
+  reminder redesign is part of this work.
 - Inspect JavaFX views, stage management, persistence, note data, and current
   Show All/close behavior before implementation. Review the architecture and
   layouts before making code changes.
@@ -37,7 +67,7 @@ the new sticky-note minimize control should explicitly use a horizontal line.
 | [StickyNoteView](../src/main/java/org/stickynotefx/ui/StickyNoteView.java) | Owns an undecorated stage, compact header, text editor, menus, status, resize grip and playful overlay. Default size 320 x 300, minimum 260 x 220. No minimize button. | Retain styling, controls and editor behavior; separate reusable editor content from window ownership. |
 | [StickyNoteController](../src/main/java/org/stickynotefx/ui/StickyNoteController.java) | Owns a Note snapshot and 400 ms autosave, plus stage geometry, dragging and resizing. | Separate shared editing state from window-specific behavior before allowing a host to switch notes. |
 | [NoteManager](../src/main/java/org/stickynotefx/ui/NoteManager.java) | Owns repository, one controller/stage per note, preferences, reminders and the All Notes window. | Keep application coordination; distinguish note sessions from open window hosts. |
-| [MainWindow](../src/main/java/org/stickynotefx/ui/MainWindow.java) | Separate non-modal list stage with New note, Open note, Show all, Quit and Preferences. | Reuse list-cell/preview behavior in a sidebar; retire the separate list stage once all activation paths reach the integrated browser. |
+| [MainWindow](../src/main/java/org/stickynotefx/ui/MainWindow.java) | Separate non-modal list stage with New note, Open note, Show all, Quit and Preferences. | Retain during development. Reuse previews, selection, New Note, Preferences and activation behavior in the sidebar. Consider retirement only in Phase 5 after replacement paths pass validation. |
 | [Note](../src/main/java/org/stickynotefx/model/Note.java) | Immutable record: ID, content, x/y/width/height, color, reminder timestamp and theme. | Keep the content model and existing compact-note bounds. No explicit title or recency timestamps exist. |
 | [NoteRepository](../src/main/java/org/stickynotefx/persistence/NoteRepository.java) | SQLite CRUD; loads all notes ordered by ID. Updates write all fields. | Keep existing storage API initially. Do not let multiple independent editor snapshots overwrite one another. |
 | [DatabaseProvider](../src/main/java/org/stickynotefx/persistence/DatabaseProvider.java) | XDG/profile database placement, WAL and nine-column notes table. | No schema migration needed for the initial navigation design. |
@@ -60,6 +90,10 @@ the new sticky-note minimize control should explicitly use a horizontal line.
 - Deletion is confirmed, cancels reminders and disposes the note controller.
 - Themes, reminders, snooze and playful state already exist and must survive
   navigation. Current hidden-stage handling stops playful effects.
+
+The lifecycle above describes existing code, not the desired behavior. In
+particular, both close-triggered management-window activation and the empty
+MainWindow close-to-quit behavior conflict with the revised X semantics.
 
 ## Proposed architecture
 
@@ -103,7 +137,9 @@ framework:
 - **NoteManager:** retain creation, confirmed deletion, persistence, profile
   preferences and reminder ownership. Maintain sessions separately from windows.
   Expose integrated browser activation for menu actions, errors, desktop actions,
-  and second-instance activation.
+  and second-instance activation. Close handlers must never invoke that
+  navigation entry point. Retain sessions for hidden notes so reminders and
+  explicit recovery work even when no host is visible.
 
 ### Mode transitions
 
@@ -117,18 +153,46 @@ framework:
 | New Note in Quick Note | Preserve today's action: create another small sticky window. |
 | New Note in Browser / Notebook | Create and select a blank note in the current editor; do not spawn another window. |
 | Minimize line | Flush edits and iconify the current stage. Do not open the browser, hide/delete the note, or quit. |
-| X | Preserve the current save-and-hide intent; reveal/focus an integrated browser host as a recovery route. Do not delete or quit. |
+| X in any mode | Flush the selected session and, only on success, close/hide this host. No other visual action: no browser, focus transfer, fallback window, deletion or application exit. |
 | Explicit Quit | Flush every shared session and exit only after successful saves. |
 
 If a mode/selection change requires a save and that save fails, keep the current
 editor and its text visible, report the failure, and abort the transition.
 Minimize/close must likewise not silently discard unsaved edits.
 
-**Close recovery proposal:** focus another existing Browser/Notebook host, or
-show the primary stage as a non-modal integrated browser/editor host when no
-such host exists. Never immediately reopen the exact window the user just closed.
-Closing that fallback browser can hide it, matching today's manager behavior;
-application-menu activation recovers it. This policy needs review.
+**No close recovery window:** remove the earlier proposal to focus another host
+or reveal a fallback browser after X. This applies even when the last visible
+window closes or the compatibility browser has no notes. Notesy may remain
+running without visible windows, with existing reminders active. Recovery is
+intentional: use Notes in another note, an already-open Browser/Notebook, or
+normal application activation. Only explicit Quit exits the running application.
+
+### Exact action semantics
+
+- **X / Close:** save-and-hide this window only. Do not navigate, focus another
+  Notesy host, create a note, change the selected note, delete data or quit.
+  The same policy applies to custom X and window-manager close requests.
+- **Minimize:** save as required, then iconify only this stage. Do not call the
+  close handler, browser activation, All Notes, delete or quit. On failure,
+  leave the window unminimized and display the error.
+- **Notes / Browse notes:** intentional navigation. In the completed Browser
+  milestone, preserve the current editor/content and reveal the sidebar in the
+  same stage. No close is necessary. Collapsing Browser returns to Quick Note
+  with the selected note.
+- **Expand:** intentional workspace transition carrying the current selection
+  into Notebook in the same stage. Show the persistent sidebar, maximize or size
+  appropriately to the available screen, never enter exclusive fullscreen.
+  Restore returns to the preceding mode and meaningful bounds.
+- **Show all sticky notes:** explicit bulk-window action. Show/deiconify each
+  note's individual compact host, creating/recovering a host where necessary.
+  Do not select every sidebar row, convert Browser/Notebook hosts to compact
+  mode, or duplicate an existing compact host for the same note. Preserve
+  existing focus/stacking intent. Keep this distinct from Browse notes; it may
+  move to overflow once integrated navigation exists.
+- **Quit:** flush all authoritative sessions, including hidden notes, before
+  exiting. A failed save cancels exit. Keep affected text visible, reveal an
+  editor for the failing session if none is visible, and report the failure.
+  This is failure recovery for an explicit Quit, not navigation caused by X.
 
 Keep the explicit bulk-window action, but label it **Show all sticky notes** in
 the browser's overflow menu. The persistent Notes control means **Browse notes**,
@@ -164,8 +228,37 @@ bulk action without explanation.
   callbacks to update sessions first, then notify attached views. Hidden or
   iconified hosts must not animate or steal focus.
 - Preserve note-level pin preferences in session state. Temporarily release
-  always-on-top in Notebook mode, then restore it on return; approve this
-  intentional change before implementation.
+  always-on-top in Notebook mode, then restore it on return to Quick Note.
+  This is intentional mode behavior, not a change to the note's pin preference.
+  Do not let stage always-on-top listeners overwrite that preference during the
+  temporary suppression.
+
+### MainWindow transition and activation audit
+
+Keep MainWindow available as a non-modal compatibility surface through the early
+phases. It is not the destination of X. Reuse its useful list, selection,
+creation, Preferences and commands instead of deleting it to force migration.
+Route activation through a coordinator so callers do not need to know which
+browser implementation is currently ready.
+
+| Route / event | Current behavior | Transitional behavior | Integrated target |
+| --- | --- | --- | --- |
+| Cold normal startup | Restore all saved sticky windows; create one blank note if empty. | Preserve this default. | Same compact default; do not force Notebook on startup. |
+| Application-menu / normal desktop activation while running | Second process signals showManager(). | Keep explicit activation reaching MainWindow until Browser is ready. | Focus/deiconify an existing Browser/Notebook, or deliberately open Browser with an existing note; empty collection shows New Note. |
+| Second-instance activation | Profile lock and activation request reach showManager(). | Preserve the lock, request delivery and a usable fallback. | Use the same integrated activation entry point; never create another database writer. |
+| `--all-notes` / desktop Open Notesy action | Opens MainWindow. | Preserve CLI/action compatibility. | Open integrated Browser/Notebook; this flag means browse, not show every sticky. |
+| Notes control / existing All notes menu item | Menu opens MainWindow; no persistent Notes button yet. | Persistent Notes intentionally opens the non-modal compatibility list in Phase 1. | Phase 3 replaces that temporary destination with same-stage Browser and keeps the old menu route working. |
+| Show all | Shows all sticky controllers. | Label explicitly Show all sticky notes. | Explicitly recover/show compact hosts independently of collection navigation. |
+| X, including last visible note | Hides note and shows MainWindow. | Remove management activation in Phase 1. Compatibility-window X also hides without implicit quit. | Save and hide only; no navigation, even when no windows remain. |
+| Confirmed last-note deletion | Opens MainWindow after disposing the note. | Retain an accessible empty collection/New Note surface for this explicit delete action. | Keep the current Browser/Notebook with an empty editor, or deliberately show an empty Browser if a compact host was removed. This is deletion recovery, never X behavior. |
+| Reminder-delivery or visual-state failure | Delivery error sets status and shows MainWindow; visual-state errors set its status and log. | Preserve visible/logged error reporting through the existing fallback. | Report in an appropriate integrated status/error surface, retaining retry behavior. Do not route a successful close through this path. |
+| Startup/storage/required-save failure | Application alert or controller status/exception handling. | Keep failed-save text visible; no success-shaped fallback. | Abort the required transition, report explicitly, and keep the failing editor accessible. |
+| Preferences / New Note / legacy list selection | Commands live in MainWindow or sticky menus. | Keep working while extracting reusable pieces. | Preferences remains accessible; creation follows mode; sidebar selection edits in place. |
+
+Normal activation is allowed to open/focus a browser because the user requested
+the application. X must not simulate activation. With all windows hidden, the
+existing process and reminders remain alive until Quit; verify that application-
+menu activation reliably recovers it on both KDE and GNOME.
 
 ## Mock layouts
 
@@ -218,7 +311,7 @@ clamp to the current screen. Constrain growth on small displays.
 
 ```text
 +------------------------------------------------------------------+
-| Notesy                         Quick Note / Restore        -  [] X|
+| Notesy                         Quick Note / Restore        [] - X|
 +------------------------+-----------------------------------------+
 | + New Note             | Selected note preview/title             |
 | Search notes...        | Reminder / note options                 |
@@ -235,41 +328,172 @@ clamp to the current screen. Constrain growth on small displays.
 No folders, tags, rich-text toolbar, accounts or synchronization are proposed.
 Advanced organization can be considered separately without complicating capture.
 
-## Review and acceptance gates
+## Architectural consequences and existing-code concerns
 
-Before implementation, approve:
+1. Close and navigation must be separate commands. NoteManager.open() currently
+   calls main.show() after hiding; remove that coupling, not merely change the
+   destination window. MainWindow's empty-list close-to-quit path also conflicts
+   with the new distinction between X and explicit Quit.
+2. Save must succeed before hiding. StickyNoteController currently flushes both
+   before close and in onHidden. A second failing save after hiding cannot
+   guarantee visible text; consolidate controlled close/minimize handling so
+   post-hide callbacks are not the primary safety mechanism.
+3. Stage listeners currently persist every visible geometry change. Guard mode
+   transitions and update compact bounds only in Quick Note. Do not accidentally
+   record an intermediate maximized/browser size during transition events.
+4. The notes map currently conflates sessions, windows, reminder lookup and bulk
+   showing. Split those responsibilities before in-place selection. Repository
+   updates replace all fields, so stale view snapshots are unsafe even for a
+   color or reminder change. Use a single FX-thread session state and autosave
+   coordinator per ID.
+5. Several hosts can edit one session, but only Quick hosts can propose compact
+   bounds. Keep one canonical compact host per ID; Browser/Notebook views can
+   share its session without competing geometry writers. Closing/detaching a
+   host must not dispose sessions still used by views or reminders.
+6. Reminder lookup and delivered callbacks currently require a sticky controller.
+   Adapt them to sessions without changing relative choices, explicit date/time,
+   timezone conversion, scheduler/retry logic, status, expired-state cleanup,
+   Egg/Bomb/Toaster rendering or stored reminder data. No reminder redesign.
+7. Current playful lifecycle observes showing, not necessarily iconified state.
+   Verify minimize stops animations without losing reminder state. Existing
+   pin listeners couple stage state to selection; preserve the preference
+   separately before Notebook suppresses always-on-top.
+8. Retiring MainWindow too early would strand activation and error paths. Keep
+   its commands and fallback until the audit table is covered by tests. Empty
+   collection handling must not accidentally create a blank note on every
+   activation or turn X into Quit.
+9. Phase 1 asks for persistent Expand before Notebook exists, and persistent
+   Notes before integrated Browser exists. Do not fake a Notebook transition or
+   start a premature shared-state rewrite. The proposed staging compromise is
+   documented below; it requires milestone review.
 
-1. The same-stage expansion and shared-session architecture.
-2. X recovery behavior, distinction between Minimize / Close / Quit, and the
-   explicit "Show all sticky notes" label.
-3. New Note creating a window only in Quick Note mode; selecting another note
-   edits within Browser/Notebook even if another host already displays it.
-4. Session-only workspace layout/recency for the first release, unchanged compact
-   startup, and temporarily disabling always-on-top in Notebook.
-5. Search arriving with Notebook rather than blocking the smaller Browser step.
+## Revised implementation phases
 
-After approval, deliver in reviewable steps: minimize and persistent navigation
-controls; shared sessions/editor extraction; integrated Browser; then Notebook
-and search. Do not wire incomplete navigation controls into a released UI.
+### Phase 1: window semantics and controls
 
-Required implementation checks:
+Source implementation status:
 
-- Minimize is beside X, recoverable through the desktop, and never opens All
-  Notes. Explicit show operations deiconify the host.
-- Quick -> Browser -> Notebook -> Restore preserves text, selection, reminders,
-  colors, theme and compact bounds. Test transitions within the autosave delay.
-- Shared views cannot overwrite one another's text or reminder changes. Closing
-  one host does not dispose a session still used elsewhere.
-- Failed saves block destructive navigation/quit and leave text available.
-- Selecting, creating, deleting, filtering and clearing search retain valid
-  selection/empty states without new popup windows or autosave resurrection.
-- Desktop launch, `--all-notes`, second-instance activation, last-note deletion
-  and reminder-error reporting all reach an accessible integrated view.
-- Light/Dark/Paper, playful visuals, hidden/minimized animation cleanup,
-  multi-monitor placement, keyboard focus, tooltips and accessible names survive.
-- Exercise the 260-pixel compact minimum, display scaling, KDE/GNOME and
-  X11/Wayland. Reuse and extend the existing repository, reminder and native
-  [UI tests](../src/test/java/org/stickynotefx/ui/StickyNoteUiTest.java).
+- Sticky-note X now saves and hides only its stage; the compatibility browser
+  also hides without implicitly quitting when empty.
+- Minimize saves before iconifying, and explicit show operations deiconify.
+  Minimized playful visuals stop and restore without replaying delivery.
+- Persistent Notes opens the retained compatibility browser intentionally.
+- Persistent Expand is disabled with an explanatory tooltip, also installed on
+  its wrapper so it is available when the disabled control is hovered.
+- Show all sticky notes is in the compatibility browser's overflow menu.
+- All eight controls use 24-pixel-wide, 30-pixel-high targets, with a drag region
+  of at least 36 pixels. Minimum-width tests exercise all three themes and
+  check control placement and graphic clipping.
+- Shared sessions, integrated Browser and Notebook are deliberately not added.
+  These source changes do not update the installed application automatically.
 
-This document records a design only. No Java, CSS, database, launcher or installed
-application files have been changed.
+Validation: all 18 native UI cases passed on the current desktop with JDK 21,
+the repaired system OpenJFX libraries and no LD_PRELOAD. Light/Dark/Paper
+minimum-width snapshots were inspected. The local application JAR also builds.
+This does not replace the outstanding cross-desktop/display-scaling checks.
+
+```sh
+env -u LD_PRELOAD JAVA_HOME=/usr/lib64/jvm/java-21-openjdk \
+  MAVEN_OPTS=-Djava.library.path=/usr/lib64/openjfx17-gnujason:/usr/lib64 \
+  STICKYNOTEFX_UI_TEST=1 mvn -o -Psystem-javafx \
+  -Dsystem.javafx.lib=/usr/share/java/openjfx17-gnujason \
+  -DforkCount=0 -Dtest=StickyNoteUiTest test
+```
+
+- Add the horizontal-line minimize control immediately left of X.
+- X flushes and hides only its host; remove all close-triggered list/focus
+  behavior. Keep failed-save text visible. Apply consistent non-quitting X
+  semantics to the compatibility window.
+- Add persistent Notes, initially reaching the existing non-modal All Notes
+  implementation only on an intentional click. This is a temporary compatibility
+  destination, not the final same-stage interaction.
+- Establish a persistent Expand control in the development UI, disabled with an
+  explanatory tooltip/accessibility description until Phase 4. Do not ship an
+  enabled no-op, call it Notebook while merely resizing, or expose incomplete
+  controls as a completed release. If an inactive control is undesirable, defer
+  its visible exposure until Phase 4 rather than rushing Notebook into Phase 1.
+- Rename the bulk action Show all sticky notes, retain existing functions and
+  MainWindow, and verify deliberate application activation recovers hidden notes.
+- Validate control fit, hit targets, tooltips and a usable drag region at 260
+  pixels. If necessary, propose moving Pin/Reminder into More at narrow widths
+  for review, keeping their actions accessible and Notes/Expand/Minimize/Close
+  discoverable; do not silently raise minimum width or remove features.
+
+**Recommended first implementation milestone:** Phase 1 alone, with the staged
+Notes/Expand behavior explicitly reviewed. Its acceptance demonstration is:
+edit then immediately X -> saved note disappears with no new/focused Notesy
+window; minimize -> only that host iconifies; save failure -> text remains
+visible; deliberate activation -> notes recover; all compact controls remain
+usable at 260 pixels. No session extraction or MainWindow demolition yet.
+
+### Phase 2: shared state extraction
+
+- Introduce one authoritative NoteSession per note ID and extract NoteEditorView
+  from stage ownership. Keep the current compact and compatibility interfaces.
+- Move autosave/content/reminder updates into sessions; prove simultaneous-view
+  synchronization without recursive listeners or stale delayed saves.
+- Preserve all reminder, visual, theme, pin and persistence functionality.
+  No sidebar dependency until shared state is stable.
+
+### Phase 3: integrated Browser
+
+- Introduce NotesSidebarView, reusing list previews, selection and useful commands.
+- Notes expands the current stage and retains its selected editor/content.
+- Selecting another note flushes then edits in place; New Note creates/selects in
+  the current Browser. No new popup for selection.
+- Preserve compact geometry and maintain Show all sticky notes as a separate
+  bulk operation. Search does not block this phase.
+- Route explicit browsing/activation to the integrated surface as each path is
+  verified; retain MainWindow as a compatibility fallback.
+
+### Phase 4: Notebook
+
+- Enable Expand/Restore into a maximized or appropriately large, non-fullscreen
+  workspace with a persistent sidebar and larger editor.
+- Add case-insensitive filtering across loaded content, no-result and clear
+  states, without SQLite FTS or new organization systems.
+- Temporarily suppress Notebook always-on-top, restore the prior compact pin
+  behavior, and validate restore bounds/mode/selection.
+
+### Phase 5: cleanup after proven migration
+
+- Verify all activation, error, menu and empty-state routes before deciding
+  whether to retire MainWindow. Its removal is optional, not assumed.
+- Remove obsolete paths carefully, update tests/documentation and preserve
+  compatibility, including `--all-notes` and second-instance activation.
+- Do not introduce tags, folders, accounts, synchronization, rich text or a
+  reminder visual redesign as cleanup.
+
+## Testing and review gates
+
+Retain and extend the existing repository, reminder and native
+[UI tests](../src/test/java/org/stickynotefx/ui/StickyNoteUiTest.java):
+
+- Quick -> Browser -> Notebook -> Restore preserves text, selection, compact
+  geometry, colors/themes, pin state and reminders.
+- Exercise mode change, selection, minimize, close and Quit inside the existing
+  400 ms autosave delay; save failures block closing, selection and exit.
+- X never opens/reveals/focuses another Notesy window, including the last visible
+  window and an empty compatibility browser. Successful close is not navigation.
+- Minimize affects only the current host, does not delete or quit, stops hidden
+  visual work, and can be explicitly restored/deiconified.
+- Multiple sticky windows remain independent; multiple views of one session
+  synchronize without recursive listeners or competing autosave writers. Closing
+  one host does not dispose a shared session.
+- Deletion, New Note by mode, Show all sticky notes, search, selection under
+  filtering, and empty/no-result states remain correct; deleted notes cannot be
+  resurrected by pending saves.
+- Preserve relative reminder presets, explicit date/time, timezone behavior,
+  Egg/Bomb/Toaster, reminder status/cleanup/persistence and hidden-note delivery.
+- Verify cold startup, normal/desktop activation, second-instance activation,
+  `--all-notes`, menu actions, last-note deletion and error/recovery paths.
+- Verify multi-monitor placement/clamping, display scaling, KDE/GNOME and
+  X11/Wayland where practical, focus preservation, accessible names/tooltips,
+  and actual usability at the existing 260-pixel compact minimum.
+
+Phase 1 is authorized; review its results before proceeding to shared-state
+extraction. Later phases require their own acceptance evidence rather than one
+large rewrite.
+
+This document records the phased design and Phase 1 source implementation status.
+The database schema, launchers, packaging and installed application are unchanged.

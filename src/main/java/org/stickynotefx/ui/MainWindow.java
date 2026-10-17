@@ -30,7 +30,8 @@ public final class MainWindow {
         org.stickynotefx.theme.WindowIcons.apply(stage);
         Button add = new Button("+ New note");
         add.setOnAction(event -> create.run());
-        Button stack = new Button("Show all");
+        var stack = new javafx.scene.control.MenuItem("Show all sticky notes");
+        stack.setId("show-all-sticky-notes");
         stack.setOnAction(event -> showAll.run());
         Button exit = new Button("Quit");
         exit.setOnAction(event -> quit.run());
@@ -62,18 +63,17 @@ public final class MainWindow {
         status.setWrapText(true);
         status.setPadding(new Insets(8));
         BorderPane root = new BorderPane(notes);
-        var options = new javafx.scene.control.MenuButton("\u22ef", null, preferences);
+        var options = new javafx.scene.control.MenuButton("\u22ef", null, stack, preferences);
         options.setTooltip(new javafx.scene.control.Tooltip("Options"));
         options.setAccessibleText("Options");
-        root.setTop(new ToolBar(add, openButton, stack, exit, options));
+        root.setTop(new ToolBar(add, openButton, exit, options));
         root.setBottom(status);
         stage.setScene(new Scene(root, 460, 360));
         stage.setMinWidth(420);
         stage.setMinHeight(260);
         stage.setOnCloseRequest(event -> {
             event.consume();
-            if (notes.getItems().isEmpty()) quit.run();
-            else stage.hide();
+            stage.hide();
         });
     }
 

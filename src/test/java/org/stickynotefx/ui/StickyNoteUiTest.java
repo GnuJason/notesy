@@ -69,7 +69,7 @@ class StickyNoteUiTest {
                     first.view().stage().getScene().getRoot().layout();
                     assertTrue(first.view().editor().getWidth() > 200);
                     assertTrue(first.view().editor().getHeight() > 100);
-                    Node drag = first.view().dragBar().getChildren().get(1);
+                    Node drag = first.view().dragBar().lookup("#note-drag-region");
                     double originalX = first.view().stage().getX();
                     double originalY = first.view().stage().getY();
                     mouse(drag, MouseEvent.MOUSE_PRESSED, originalX + 60, originalY + 20);
@@ -131,8 +131,7 @@ class StickyNoteUiTest {
             var pin = note.view().pinButton();
             assertTrue(note.view().dragBar().getChildren().contains(pin));
                 assertEquals(javafx.stage.StageStyle.UNDECORATED, note.view().stage().getStyle());
-                assertEquals(note.view().reminderButton(), note.view().dragBar().getChildren().get(3));
-                assertEquals(pin, note.view().dragBar().getChildren().get(2));
+                assertTrue(note.view().dragBar().getChildren().contains(note.view().reminderButton()));
                 assertEquals(1, note.view().dragBar().getChildren().stream()
                     .filter(node -> node.getId() != null && node.getId().equals("close-note")).count());
             assertFalse(pin.isSelected());
@@ -300,6 +299,212 @@ class StickyNoteUiTest {
     }
 
     @Test
+    void closeSavesWithoutOpeningBrowserAndExplicitNavigationRecoversNotes() throws Exception {
+        withManager(fixture -> {
+            var first = fixture.manager().createNote();
+            var second = fixture.manager().createNote();
+            var browserShows = new java.util.concurrent.atomic.AtomicInteger();
+            fixture.primary().setOnShowing(event -> browserShows.incrementAndGet());
+            first.view().editor().setText("Saved immediately before X");
+            first.view().closeButton().fire();
+            assertFalse(first.view().stage().isShowing());
+            assertTrue(second.view().stage().isShowing());
+            assertFalse(fixture.primary().isShowing());
+            assertEquals("Saved immediately before X", fixture.repository().findAll().getFirst().content());
+            second.view().editor().setText("Saved by window-manager close");
+            second.view().stage().fireEvent(new javafx.stage.WindowEvent(second.view().stage(),
+                    javafx.stage.WindowEvent.WINDOW_CLOSE_REQUEST));
+            assertFalse(second.view().stage().isShowing());
+            assertFalse(fixture.primary().isShowing());
+            assertEquals(0, browserShows.get(), "Closing the last visible note must not activate the browser");
+            assertEquals("Saved by window-manager close", fixture.repository().findAll().getLast().content());
+
+            fixture.manager().show(first.note().id());
+            first.view().notesButton().fire();
+            assertTrue(first.view().stage().isShowing(), "Browsing must not close the current note");
+            assertTrue(fixture.primary().isShowing());
+            var options = (MenuButton) fixture.primary().getScene().getRoot().lookup(".menu-button");
+            var showAll = options.getItems().stream()
+                    .filter(item -> "show-all-sticky-notes".equals(item.getId())).findFirst().orElseThrow();
+            assertEquals("Show all sticky notes", showAll.getText());
+            showAll.fire();
+            assertTrue(second.view().stage().isShowing());
+            fixture.primary().fireEvent(new javafx.stage.WindowEvent(fixture.primary(),
+                    javafx.stage.WindowEvent.WINDOW_CLOSE_REQUEST));
+            assertFalse(fixture.primary().isShowing());
+            first.view().managerItem().fire();
+            assertTrue(fixture.primary().isShowing(), "The legacy browsing route must remain available");
+        });
+    }
+
+    @Test
+    void minimizeSavesOnlyCurrentWindowAndPausesPlayfulVisuals() throws Exception {
+        withManager(fixture -> {
+            var first = fixture.manager().createNote();
+            var second = fixture.manager().createNote();
+            fixture.manager().setNotePlayfulSettings(first.note().id(), new PlayfulSettings(true, PlayfulMode.EGG));
+            long due = System.currentTimeMillis() + 3_600_000;
+            first.setReminder(due);
+            first.view().editor().setText("Saved immediately before minimize");
+            first.view().minimizeButton().fire();
+            awaitIconified(first.view().stage(), true);
+            assertTrue(first.view().stage().isIconified());
+            assertTrue(first.view().stage().isShowing());
+            assertTrue(second.view().stage().isShowing());
+            assertFalse(second.view().stage().isIconified());
+            assertFalse(fixture.primary().isShowing());
+            assertEquals("Saved immediately before minimize", fixture.repository().findAll().getFirst().content());
+            assertEquals(due, fixture.repository().findAll().getFirst().reminderTimestamp());
+            assertFalse(first.view().playfulOverlay().isAnimating());
+
+            fixture.manager().reminderDelivered(first.note().id(), due);
+            assertTrue(first.view().stage().isIconified(), "Delivery must not restore the note");
+            assertFalse(first.view().playfulOverlay().isAnimating());
+            first.show();
+            awaitIconified(first.view().stage(), false);
+            assertFalse(first.view().stage().isIconified());
+            assertEquals(PlayfulReminderOverlay.State.FIRED, first.view().playfulOverlay().state());
+            assertFalse(first.view().playfulOverlay().isAnimating(), "Restoring must not replay delivery");
+            assertNull(fixture.repository().findAll().getFirst().reminderTimestamp());
+        });
+    }
+
+    @Test
+    void failedCloseAndMinimizeKeepTextVisibleAndSuccessfulCloseSavesOnce() throws Exception {
+        withManager(fixture -> {
+            var fail = new java.util.concurrent.atomic.AtomicBoolean(true);
+            var attempts = new java.util.concurrent.atomic.AtomicInteger();
+            var controller = new StickyNoteController(Note.blank(100, 100), note -> {
+                attempts.incrementAndGet();
+                if (fail.get()) throw new IllegalStateException("Read-only test storage");
+            });
+            try {
+                controller.show();
+                controller.view().editor().setText("Keep this unsaved text");
+                var close = new javafx.stage.WindowEvent(controller.view().stage(),
+                        javafx.stage.WindowEvent.WINDOW_CLOSE_REQUEST);
+                assertThrows(IllegalStateException.class,
+                        () -> controller.view().stage().getOnCloseRequest().handle(close));
+                assertTrue(close.isConsumed());
+                assertThrows(IllegalStateException.class,
+                        () -> controller.view().minimizeButton().getOnAction().handle(new javafx.event.ActionEvent()));
+                assertTrue(controller.view().stage().isShowing());
+                assertFalse(controller.view().stage().isIconified());
+                assertEquals("Keep this unsaved text", controller.view().editor().getText());
+                assertEquals("Save failed",
+                        ((javafx.scene.control.Label) controller.view().stage().getScene()
+                                .getRoot().lookup(".note-status")).getText());
+                assertFalse(fixture.primary().isShowing());
+                fail.set(false);
+                controller.view().closeButton().fire();
+                assertFalse(controller.view().stage().isShowing());
+                assertEquals(3, attempts.get(), "Successful close must not save again after hiding");
+            } finally {
+                controller.dispose();
+            }
+        });
+    }
+
+    @Test
+    void failedQuitRecoversHiddenUnsavedNoteAndDoesNotExit() throws Exception {
+        withManager(fixture -> {
+            var note = fixture.manager().createNote();
+            note.view().editor().setText("A failed Quit must retain this text");
+            note.view().stage().hide();
+            try (var connection = java.sql.DriverManager.getConnection("jdbc:sqlite:" + directory.resolve("notes.db"));
+                 var statement = connection.createStatement()) {
+                statement.execute("""
+                        CREATE TRIGGER fail_note_update BEFORE UPDATE ON notes
+                        BEGIN SELECT RAISE(FAIL, 'Read-only test storage'); END
+                        """);
+                try {
+                    assertThrows(IllegalStateException.class,
+                            () -> note.view().quitItem().getOnAction().handle(new javafx.event.ActionEvent()));
+                    assertTrue(note.view().stage().isShowing());
+                    assertFalse(note.view().stage().isIconified());
+                    assertEquals("A failed Quit must retain this text", note.view().editor().getText());
+                } finally {
+                    statement.execute("DROP TRIGGER fail_note_update");
+                }
+            }
+            note.view().closeButton().fire();
+            assertEquals("A failed Quit must retain this text", fixture.repository().findAll().getFirst().content());
+        });
+    }
+
+    @Test
+    void compactHeaderFitsAt260PixelsWithAccessibleNavigationAndWindowControls() throws Exception {
+        withManager(fixture -> {
+            var note = fixture.manager().createNote();
+            var view = note.view();
+            assertEquals(260, view.stage().getMinWidth());
+            view.stage().setWidth(260);
+            view.stage().setHeight(220);
+            var root = view.stage().getScene().getRoot();
+            var controls = java.util.List.of(view.addButton(), view.notesButton(), view.pinButton(),
+                    view.reminderButton(), view.optionsMenu(), view.expandButton(),
+                    view.minimizeButton(), view.closeButton());
+            for (var theme : org.stickynotefx.theme.ThemeRegistry.Theme.values()) {
+                fixture.manager().setTheme(theme);
+                root.resize(260, 220);
+                root.applyCss();
+                root.layout();
+                assertEquals(260, root.getLayoutBounds().getWidth());
+                double previousRight = 0;
+                for (var control : controls) {
+                    assertFalse(control.getAccessibleText().isBlank());
+                    assertNotNull(control.getTooltip());
+                    assertFalse(control.getTooltip().getText().isBlank());
+                    assertTrue(control.isVisible());
+                    assertTrue(control.getWidth() >= 24, "Controls must retain 24-pixel hit targets");
+                    assertTrue(control.getHeight() >= 24);
+                    var bounds = view.dragBar().sceneToLocal(control.localToScene(control.getLayoutBounds()));
+                    assertTrue(bounds.getMinX() >= previousRight, "Controls must not overlap");
+                    assertTrue(bounds.getMaxX() <= view.dragBar().getWidth(), "Controls must fit the header");
+                    previousRight = bounds.getMaxX();
+                    if (control.getGraphic() != null) {
+                        var graphic = control.getGraphic();
+                        var graphicBounds = control.sceneToLocal(graphic.localToScene(graphic.getBoundsInLocal()));
+                        assertTrue(graphicBounds.getWidth() > 0);
+                        assertTrue(graphicBounds.getMinX() >= 0 && graphicBounds.getMaxX() <= control.getWidth(),
+                                "Control graphics must not be clipped");
+                        assertTrue(graphicBounds.getMinY() >= 0 && graphicBounds.getMaxY() <= control.getHeight(),
+                                "Control graphics must fit vertically");
+                    }
+                }
+                Node drag = view.dragBar().lookup("#note-drag-region");
+                assertTrue(drag.getLayoutBounds().getWidth() >= 36, "Keep a usable drag target at minimum width");
+                capture(note, "phase-one-minimum-" + theme.name().toLowerCase(java.util.Locale.ROOT) + ".png");
+            }
+            var header = view.dragBar().getChildren();
+            assertEquals(header.indexOf(view.minimizeButton()) + 1, header.indexOf(view.closeButton()));
+            assertTrue(view.expandButton().isDisabled());
+            assertTrue(view.expandButton().getTooltip().getText().contains("not available yet"));
+            assertFalse(view.notesButton().isDisabled());
+        });
+    }
+
+    @Test
+    void closingEmptyCompatibilityBrowserDoesNotQuit() throws Exception {
+        withManager(fixture -> {
+            Stage stage = new Stage();
+            var quitCalls = new java.util.concurrent.atomic.AtomicInteger();
+            try {
+                var browser = new MainWindow(stage, () -> { }, () -> { }, id -> { }, quitCalls::incrementAndGet);
+                browser.show();
+                stage.fireEvent(new javafx.stage.WindowEvent(stage,
+                        javafx.stage.WindowEvent.WINDOW_CLOSE_REQUEST));
+                assertFalse(stage.isShowing());
+                assertEquals(0, quitCalls.get());
+                browser.show();
+                assertTrue(stage.isShowing(), "Explicit activation must recover an empty browser");
+            } finally {
+                stage.hide();
+            }
+        });
+    }
+
+    @Test
     void quickPresetsAndZonePreviewDoNotChangeSchedulingZone() throws Exception {
         withManager(fixture -> {
             var note = fixture.manager().createNote();
@@ -360,7 +565,7 @@ class StickyNoteUiTest {
             assertEquals(bounds.getMinX() + 93, fixture.repository().findAll().getFirst().x());
             assertEquals(390, fixture.repository().findAll().getFirst().width());
             note.view().snapToGridItem().setSelected(true);
-            mouse(note.view().dragBar().getChildren().get(1), MouseEvent.MOUSE_RELEASED, 0, 0);
+            mouse(note.view().dragBar().lookup("#note-drag-region"), MouseEvent.MOUSE_RELEASED, 0, 0);
             note.flush();
             assertEquals(bounds.getMinX() + 100, fixture.repository().findAll().getFirst().x());
             assertEquals(bounds.getMinY() + 100, fixture.repository().findAll().getFirst().y());
@@ -384,8 +589,36 @@ class StickyNoteUiTest {
         });
     }
 
-    private record Fixture(NoteManager manager, NoteRepository repository) { }
+    private record Fixture(NoteManager manager, NoteRepository repository, Stage primary) { }
     @FunctionalInterface private interface FxCheck { void run(Fixture fixture) throws Exception; }
+
+    private static void awaitIconified(Stage stage, boolean expected) {
+        Object key = new Object();
+        var check = new javafx.animation.Timeline();
+        var timeout = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(5));
+        check.getKeyFrames().add(new javafx.animation.KeyFrame(
+                javafx.util.Duration.millis(50), event -> {
+                    if (stage.isIconified() == expected) {
+                        check.stop();
+                        timeout.stop();
+                        Platform.exitNestedEventLoop(key, true);
+                    }
+                }));
+        check.setCycleCount(javafx.animation.Animation.INDEFINITE);
+        timeout.setOnFinished(event -> {
+            check.stop();
+            Platform.exitNestedEventLoop(key, false);
+        });
+        check.play();
+        timeout.play();
+        try {
+            assertEquals(Boolean.TRUE, Platform.enterNestedEventLoop(key),
+                    "Window manager did not reach iconified=" + expected);
+        } finally {
+            check.stop();
+            timeout.stop();
+        }
+    }
 
     private void withManager(FxCheck check) throws Exception {
         FutureTask<Void> task = new FutureTask<>(() -> {
@@ -395,7 +628,7 @@ class StickyNoteUiTest {
                 var manager = new NoteManager(repository, primary,
                         new PlayfulSettingsStore(directory.resolve("preferences.properties")));
                 try {
-                    check.run(new Fixture(manager, repository));
+                    check.run(new Fixture(manager, repository, primary));
                 } finally {
                     manager.close();
                     primary.hide();

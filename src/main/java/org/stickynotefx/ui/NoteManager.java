@@ -84,17 +84,12 @@ public final class NoteManager implements AutoCloseable {
         controller.onReminderChanged(timestamp -> saveExpired(controller, false));
         view.preferencesItem().setOnAction(event -> showPreferences(view.stage()));
         view.addButton().setOnAction(event -> createNote());
-        view.managerItem().setOnAction(event -> { refreshList(); main.show(); });
+        view.notesButton().setOnAction(event -> showManager());
+        view.managerItem().setOnAction(event -> showManager());
         view.quitItem().setOnAction(event -> quit());
         view.deleteItem().setOnAction(event -> confirmDelete(controller));
         view.reminderButton().setOnAction(event -> new ReminderDialog(view.stage(), controller.note().reminderTimestamp())
                 .showAndWait().ifPresent(selection -> controller.setReminder(selection.timestamp())));
-        view.stage().setOnCloseRequest(event -> {
-            event.consume();
-            controller.flush();
-            view.stage().hide();
-            main.show();
-        });
         reminders.refresh(note);
         refreshList();
         controller.show();
@@ -213,7 +208,16 @@ public final class NoteManager implements AutoCloseable {
 
     private void refreshList() { main.update(notes.values().stream().map(StickyNoteController::note).toList()); }
 
-    public void flush() { notes.values().forEach(StickyNoteController::flush); }
+    public void flush() {
+        for (var controller : notes.values()) {
+            try {
+                controller.flush();
+            } catch (RuntimeException failure) {
+                controller.show();
+                throw failure;
+            }
+        }
+    }
 
     private void quit() {
         flush();

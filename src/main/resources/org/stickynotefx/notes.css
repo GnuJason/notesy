@@ -6,7 +6,7 @@
     -fx-background-radius: 8;
 }
 .drag-bar {
-    -fx-padding: 5 8 3 8;
+    -fx-padding: 5 6 3 6;
     -fx-background-radius: 8 8 0 0;
 }
 .icon-button {
@@ -25,6 +25,12 @@
 }
 .icon-button:hover, .icon-button:focused { -fx-background-color: rgba(0,0,0,0.09); }
 .icon-button:active { -fx-background-color: #365b49; -fx-text-fill: white; }
+.drag-bar .icon-button {
+    -fx-min-width: 24;
+    -fx-pref-width: 24;
+    -fx-max-width: 24;
+}
+.note-control-icon { -fx-fill: -notesy-ink; }
 .note-pin-icon {
     -fx-fill: #424238;
     -fx-scale-x: 0.68;
@@ -33,6 +39,7 @@
 .icon-button:active .note-pin-icon { -fx-fill: white; }
 .menu-button.icon-button > .arrow-button { -fx-padding: 0; }
 .menu-button.icon-button > .arrow-button > .arrow { -fx-shape: ""; -fx-padding: 0; }
+.drag-bar .menu-button > .label { -fx-padding: 0; }
 .note-editor, .note-editor .scroll-pane, .note-editor .scroll-pane .viewport, .note-editor .content {
     -fx-background-color: transparent;
 }

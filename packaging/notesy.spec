@@ -2,7 +2,7 @@
 
 Name:           notesy
 Version:        1.0
-Release:        1
+Release:        2
 Summary:        Native desktop sticky notes with reminders
 Group:          Productivity/Office/Other
 BuildArch:      noarch
@@ -54,7 +54,7 @@ appstream-util validate-relax --nonet %{buildroot}%{_datadir}/metainfo/%{name}.a
 
 %files
 %license LICENSE
-%doc README.md docs/ARCHITECTURE.md docs/MAINTAINERS.md docs/TASKS.md docs/ARTWORK.md docs/READINESS.md
+%doc README.md docs/ARCHITECTURE.md docs/MAINTAINERS.md docs/TASKS.md docs/ARTWORK.md docs/READINESS.md docs/UI-EVOLUTION.md
 %{_bindir}/%{name}
 %{_datadir}/%{name}/
 %{_datadir}/applications/%{name}.desktop
@@ -63,6 +63,11 @@ appstream-util validate-relax --nonet %{buildroot}%{_datadir}/metainfo/%{name}.a
 %{_datadir}/icons/hicolor/*x*/apps/%{name}.png
 
 %changelog
+* Fri Oct 16 2026 Notesy maintainers - 1.0-2
+- Save and close notes without opening the notes browser.
+- Add minimize, persistent browsing and staged workspace controls.
+- Clarify the bulk Show all sticky notes action and retain compatibility browsing.
+
 * Sat Sep 26 2026 Notesy maintainers - 1.0-0
 - Apply GPL-3.0-or-later licensing and include artwork provenance.
 - Activate existing profiles without network IPC; retain release version 1.0.

@@ -67,7 +67,15 @@ public final class StickyNoteController {
             view.stage().setHeight(Math.max(220, initialHeight + event.getScreenY() - resizeY));
             updateBounds();
         });
-        view.stage().setOnHidden(event -> flush());
+        view.stage().setOnCloseRequest(event -> {
+            event.consume();
+            flush();
+            view.stage().hide();
+        });
+        view.minimizeButton().setOnAction(event -> {
+            flush();
+            view.stage().setIconified(true);
+        });
         javafx.beans.InvalidationListener boundsChanged = observable -> {
             if (view.stage().isShowing()) updateBounds();
         };
@@ -140,11 +148,14 @@ public final class StickyNoteController {
     public void dispose() {
         autosave.stop();
         view.disposePlayful();
-        view.stage().setOnHidden(null);
         view.stage().hide();
     }
 
     public Note note() { return note; }
     public StickyNoteView view() { return view; }
-    public void show() { view.stage().show(); view.stage().toFront(); }
+    public void show() {
+        view.stage().setIconified(false);
+        view.stage().show();
+        view.stage().toFront();
+    }
 }

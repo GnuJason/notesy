@@ -33,15 +33,18 @@ public final class StickyNoteView {
     private final Stage stage = new Stage(javafx.stage.StageStyle.UNDECORATED);
     private final BorderPane paper = new BorderPane();
     private final TextArea editor = new TextArea();
-    private final HBox dragBar = new HBox(4);
+    private final HBox dragBar = new HBox(2);
     private final Region resizeGrip = new Region();
     private final Button addButton = iconButton("+", "New note");
+    private final Button notesButton = iconButton("", "Browse notes");
     private final Button reminderButton = iconButton("\u23f1", "Set reminder");
     private final javafx.scene.control.ToggleButton pinButton = new javafx.scene.control.ToggleButton();
+    private final Button expandButton = iconButton("", "Expand workspace (Notebook mode is not available yet)");
+    private final Button minimizeButton = iconButton("", "Minimize note");
     private final Button closeButton = iconButton("\u00d7", "Close note");
-    private final MenuButton optionsMenu = new MenuButton("\u22ef");
+    private final MenuButton optionsMenu = new MenuButton();
     private final MenuItem deleteItem = new MenuItem("Delete note");
-    private final MenuItem managerItem = new MenuItem("All notes");
+    private final MenuItem managerItem = new MenuItem("Browse notes");
     private final MenuItem quitItem = new MenuItem("Quit Notesy");
     private final MenuItem preferencesItem = new MenuItem("Preferences...");
     private final CheckMenuItem snapToGrid = new CheckMenuItem("Snap to grid (this session)");
@@ -70,9 +73,28 @@ public final class StickyNoteView {
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        spacer.setMinWidth(24);
+        spacer.setMinWidth(36);
+        spacer.setId("note-drag-region");
+        notesButton.setId("browse-notes");
+        notesButton.setGraphic(controlGraphic("M 0 0 H 3 V 3 H 0 Z M 5 0 H 14 V 3 H 5 Z "
+                + "M 0 5 H 3 V 8 H 0 Z M 5 5 H 14 V 8 H 5 Z "
+                + "M 0 10 H 3 V 13 H 0 Z M 5 10 H 14 V 13 H 5 Z"));
+        expandButton.setId("expand-note");
+        expandButton.setGraphic(controlGraphic("M 0 5 V 0 H 5 V 2 H 2 V 5 Z "
+                + "M 9 0 H 14 V 5 H 12 V 2 H 9 Z "
+                + "M 14 9 V 14 H 9 V 12 H 12 V 9 Z "
+                + "M 5 14 H 0 V 9 H 2 V 12 H 5 Z"));
+        expandButton.setDisable(true);
+        StackPane expandControl = new StackPane(expandButton);
+        Tooltip.install(expandControl, expandButton.getTooltip());
+        expandControl.setOnMousePressed(javafx.event.Event::consume);
+        expandControl.setOnMouseDragged(javafx.event.Event::consume);
+        minimizeButton.setId("minimize-note");
+        minimizeButton.setGraphic(controlGraphic("M 0 0 H 12 V 2 H 0 Z"));
         optionsMenu.setTooltip(new Tooltip("Note options"));
         optionsMenu.setAccessibleText("Note options");
+        optionsMenu.setGraphic(controlGraphic("M 0 0 H 3 V 3 H 0 Z "
+                + "M 5 0 H 8 V 3 H 5 Z M 10 0 H 13 V 3 H 10 Z"));
         optionsMenu.setId("note-options");
         optionsMenu.getStyleClass().add("icon-button");
         HBox swatches = new HBox(8);
@@ -131,7 +153,8 @@ public final class StickyNoteView {
                 new SeparatorMenuItem(), managerItem, deleteItem, quitItem);
         dragBar.getStyleClass().add("drag-bar");
         dragBar.setCursor(Cursor.MOVE);
-        dragBar.getChildren().addAll(addButton, spacer, pinButton, reminderButton, optionsMenu, closeButton);
+        dragBar.getChildren().addAll(addButton, notesButton, spacer, pinButton, reminderButton, optionsMenu,
+                expandControl, minimizeButton, closeButton);
         resizeGrip.getStyleClass().add("resize-grip");
         resizeGrip.setCursor(Cursor.SE_RESIZE);
         resizeGrip.setMinSize(18, 18);
@@ -158,12 +181,13 @@ public final class StickyNoteView {
         scene.getStylesheets().add(getClass().getResource("/org/stickynotefx/notes.css").toExternalForm());
         stage.setScene(scene);
         setTheme(org.stickynotefx.theme.ThemeRegistry.Theme.LIGHT);
-        stage.showingProperty().addListener((observable, before, showing) -> visual(() -> {
-            if (overlay != null) {
-            if (showing) refreshPlayful();
-                else overlay.close();
-            }
-        }));
+        javafx.beans.InvalidationListener visibilityChanged = observable -> visual(() -> {
+            if (overlay == null) return;
+            if (visualsVisible()) refreshPlayful();
+            else overlay.close();
+        });
+        stage.showingProperty().addListener(visibilityChanged);
+        stage.iconifiedProperty().addListener(visibilityChanged);
     }
 
     private static Button iconButton(String symbol, String description) {
@@ -181,6 +205,17 @@ public final class StickyNoteView {
         return pin;
     }
 
+    private static SVGPath controlGraphic(String content) {
+        SVGPath graphic = new SVGPath();
+        graphic.setContent(content);
+        graphic.getStyleClass().add("note-control-icon");
+        return graphic;
+    }
+
+    private boolean visualsVisible() {
+        return stage.isShowing() && !stage.isIconified();
+    }
+
     public void setColor(String color) {
         paper.setStyle("-notesy-note-color: " + color + ";");
     }
@@ -190,7 +225,7 @@ public final class StickyNoteView {
         playfulExpired = false;
         refreshReminderActions();
         visual(() -> {
-            if (overlay != null && stage.isShowing()) overlay.scheduled(timestamp);
+            if (overlay != null && visualsVisible()) overlay.scheduled(timestamp);
         });
         reminderButton.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("active"), timestamp != null);
         String description = timestamp == null ? "Set reminder" : "Reminder: "
@@ -209,7 +244,7 @@ public final class StickyNoteView {
             overlay = PlayfulReminderOverlay.create(settings.activeMode());
             playfulSlot.getChildren().setAll(overlay);
             playfulSlot.visibleProperty().bind(overlay.visibleProperty());
-            if (stage.isShowing()) refreshPlayful();
+            if (visualsVisible()) refreshPlayful();
         });
     }
 
@@ -217,7 +252,7 @@ public final class StickyNoteView {
         playfulExpired = true;
         refreshReminderActions();
         visual(() -> {
-            if (overlay != null && stage.isShowing()) overlay.fired();
+            if (overlay != null && visualsVisible()) overlay.fired();
         });
     }
 
@@ -228,7 +263,7 @@ public final class StickyNoteView {
     }
 
     private void refreshPlayful() {
-        if (overlay == null || !stage.isShowing()) return;
+        if (overlay == null || !visualsVisible()) return;
         if (playfulExpired && reminderTimestamp == null) overlay.showExpired();
         else overlay.scheduled(reminderTimestamp);
     }
@@ -276,6 +311,9 @@ public final class StickyNoteView {
     public HBox dragBar() { return dragBar; }
     public Region resizeGrip() { return resizeGrip; }
     public Button addButton() { return addButton; }
+    public Button notesButton() { return notesButton; }
+    public Button expandButton() { return expandButton; }
+    public Button minimizeButton() { return minimizeButton; }
     public Button reminderButton() { return reminderButton; }
     public javafx.scene.control.ToggleButton pinButton() { return pinButton; }
     public Button closeButton() { return closeButton; }

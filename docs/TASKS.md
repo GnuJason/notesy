@@ -67,3 +67,12 @@ the corresponding local build and test commands.
   long-running desktop checks before approving v1.2.
 - [ ] RELEASE-PLAYFUL: Publish the screenshot URLs, validate AppStream online,
   resolve the system OpenJFX RPM failure, and pass all foundation release gates.
+
+## UI Evolution
+
+- [x] UI-PHASE-1: Make X save-and-hide only, add minimize and persistent Notes,
+  retain the compatibility browser, stage disabled Expand, and label the bulk
+  action Show all sticky notes. Verify minimum-width controls, save failures,
+  quiet close, minimize and deliberate recovery with native UI tests.
+- [ ] UI-PHASE-2: Extract shared NoteSession and stage-independent NoteEditorView
+  after Phase 1 review. See [the phased proposal](UI-EVOLUTION.md) for later gates.
