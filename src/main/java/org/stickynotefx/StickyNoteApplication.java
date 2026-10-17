@@ -8,16 +8,10 @@ import org.stickynotefx.persistence.DatabaseProvider;
 import org.stickynotefx.persistence.NoteRepository;
 import org.stickynotefx.ui.NoteManager;
 
-import java.nio.channels.FileChannel;
-import java.nio.channels.FileLock;
-import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
-
 public final class StickyNoteApplication extends Application {
     private DatabaseProvider database;
     private NoteManager manager;
-    private FileChannel lockChannel;
-    private FileLock lock;
+    private ApplicationInstance instance;
     private boolean showingError;
 
     @Override public void start(Stage primary) {
@@ -25,13 +19,11 @@ public final class StickyNoteApplication extends Application {
         Thread.currentThread().setUncaughtExceptionHandler((thread, failure) -> showError(failure));
         try {
             var path = DatabaseProvider.defaultPath();
-            Files.createDirectories(path.toAbsolutePath().getParent());
-            lockChannel = FileChannel.open(path.resolveSibling("application.lock"),
-                    StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-            lock = lockChannel.tryLock();
-            if (lock == null) {
-                new Alert(Alert.AlertType.INFORMATION, "Notesy is already running for this data directory.")
-                        .showAndWait();
+                instance = ApplicationInstance.open(path.toAbsolutePath().getParent(),
+                    () -> Platform.runLater(() -> {
+                    if (manager != null) manager.showManager();
+                    }));
+                if (!instance.isPrimary()) {
                 Platform.exit();
                 return;
             }
@@ -67,8 +59,7 @@ public final class StickyNoteApplication extends Application {
             try {
                 if (database != null) database.close();
             } finally {
-                if (lock != null) lock.release();
-                if (lockChannel != null) lockChannel.close();
+                if (instance != null) instance.close();
             }
         }
     }

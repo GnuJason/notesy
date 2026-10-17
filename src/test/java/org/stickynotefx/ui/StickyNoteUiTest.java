@@ -36,16 +36,18 @@ import static org.junit.jupiter.api.Assertions.*;
 @EnabledIfEnvironmentVariable(named = "STICKYNOTEFX_UI_TEST", matches = "1")
 class StickyNoteUiTest {
     @TempDir Path directory;
+    private static boolean toolkitStarted;
 
     @org.junit.jupiter.api.BeforeAll
     static void startToolkit() throws Exception {
         CountDownLatch ready = new CountDownLatch(1);
         Platform.startup(() -> { Platform.setImplicitExit(false); ready.countDown(); });
         assertTrue(ready.await(15, TimeUnit.SECONDS));
+        toolkitStarted = true;
     }
 
     @org.junit.jupiter.api.AfterAll
-    static void stopToolkit() { Platform.exit(); }
+    static void stopToolkit() { if (toolkitStarted) Platform.exit(); }
 
     @Test
     void editsBoundsColorsRemindersAndDeletionSurviveLifecycle() throws Exception {

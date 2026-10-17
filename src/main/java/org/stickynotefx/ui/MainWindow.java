@@ -84,7 +84,7 @@ public final class MainWindow {
                 .ifPresent(note -> notes.getSelectionModel().select(note));
     }
 
-    public void show() { stage.show(); stage.toFront(); }
+    public void show() { stage.setIconified(false); stage.show(); stage.toFront(); stage.requestFocus(); }
     public void setTheme(org.stickynotefx.theme.ThemeRegistry.Theme theme) {
         org.stickynotefx.theme.ThemeRegistry.apply(stage.getScene().getRoot(), theme);
     }

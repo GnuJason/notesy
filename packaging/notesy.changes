@@ -1,4 +1,16 @@
 -------------------------------------------------------------------
+Sat Sep 26 00:00:00 UTC 2026 - Notesy maintainers
+
+- Keep version 1.0; v1.2 features remain staged, not a released version.
+- License project code and artwork under GPL-3.0-or-later; ship LICENSE
+  and artwork provenance in the source and binary packages.
+- Activate an existing profile through local filesystem requests.
+- Add a historical v1.0 database fixture and system-library test profile.
+- Align desktop categories and offline AppStream validation.
+- Factory readiness remains blocked by system OpenJFX startup, public
+  source/screenshots, OBS verification and desktop release gates.
+
+-------------------------------------------------------------------
 Fri Sep 25 00:00:00 UTC 2026 - Notesy maintainers
 
 - Initial 1.0 packaging draft: JavaFX notes, SQLite persistence and

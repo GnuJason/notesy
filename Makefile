@@ -16,7 +16,7 @@ target/notesy-1.0.jar: $(SOURCES) $(shell find src/main/resources -type f)
 
 check-metadata:
 	desktop-file-validate packaging/notesy.desktop
-	appstreamcli validate --no-net packaging/notesy.appdata.xml
+	appstream-util validate-relax --nonet packaging/notesy.appdata.xml
 
 source-dist:
 	bash scripts/source-dist.sh

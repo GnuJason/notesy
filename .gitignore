@@ -1,6 +1,7 @@
 /target/
 /dist/
 *.db
+!src/test/resources/fixtures/notes-v1.0.db
 *.db-shm
 *.db-wal
 *.lock

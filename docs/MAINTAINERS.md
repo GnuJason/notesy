@@ -1,5 +1,7 @@
 # Maintainer Build And Release Guide
 
+See [READINESS.md](READINESS.md) for the current corrective-pass results and blockers.
+
 ## Toolchains
 
 Development: JDK 21+, Maven 3.9+, GTK 3, `libgthread-2_0-0` for Maven JavaFX 21 on
@@ -23,10 +25,28 @@ make source-dist
 Do not treat the Maven jar as a standalone fat jar. For packaged execution, use the
 installed `notesy` launcher. For development, use `mvn javafx:run`.
 
+To verify installed distribution libraries, use the opt-in Maven profile:
+
+```sh
+JAVA_HOME=/usr/lib64/jvm/java-21-openjdk NOTESY_SYSTEM_JAVAFX=1 \
+   STICKYNOTEFX_UI_TEST=1 mvn -o clean verify
+```
+
+This replaces Maven JavaFX and SQLite with installed jars and sets the native
+library path to the distribution library directory. The display and notification
+service must work. `system.javafx.lib` and `system.libdir` are overridable Maven
+properties. This profile is verification-only; RPM builds still use Make.
+If JavaFX fails to start, the suite must fail, not silently skip native tests.
+
+The All Notes desktop action and subsequent normal launches signal the existing
+profile through `activation.request` beside `application.lock`. A filesystem
+watcher dispatches manager activation on the JavaFX thread; no socket, network
+connection or additional dependency is used. Compositor focus policy still applies.
+
 ## OBS Staging
 
-1. Choose the project license with the owner. Add the license text, update the spec
-   and AppStream SPDX IDs, add `%license`, and include it in the source archive.
+1. Verify the approved GPL-3.0-or-later license, root LICENSE file, `%license`
+   entry and artwork provenance are included in the release archive and RPM.
 2. Publish the canonical upstream project and release tarball. Add `URL` and the
    public `Source0` URL to the spec. Confirm the AppStream homepage and developer
    identity, publish `docs/screenshots` and validate screenshot URLs online. Confirm
@@ -42,11 +62,13 @@ installed `notesy` launcher. For development, use `mvn javafx:run`.
 8. Use an appropriate devel project and submit to Factory only after maintainer and
    licensing review. OBS credentials and permission are required; never store them here.
 
-The spec intentionally contains a non-release license marker. Metadata can be
+The approved release version remains 1.0; staged v1.2 features are not a release.
+Metadata can be
 structurally valid while still lacking the real upstream identity and screenshots
 required for a polished software-center listing. Never mistake local validation for
-Factory acceptance. The spec is architecture-specific because its launcher embeds
-the system library directory; the application jar itself contains only Java bytecode.
+Factory acceptance. The package is noarch: its launcher selects the installed
+system library directory at runtime, and its jar contains only Java bytecode
+and project resources. Native dependencies remain separate system packages.
 
 ## Operational Checks
 
@@ -65,10 +87,13 @@ the system library directory; the application jar itself contains only Java byte
 No v1.2 git branch is created by the build. The opt-in visual implementation is
 not release approval. Vector paths in `ui.playful` are original project artwork;
 PNGs in `docs/screenshots` come from the native UI test. The standard screenshot is
-a side-by-side composition of two UI snapshots. Project licensing still needs approval.
+a side-by-side composition of two UI snapshots. Code and original artwork are
+GPL-3.0-or-later; see ARTWORK.md. AppStream metadata remains CC0-1.0.
 Do not bundle Java, SQLite JNI binaries, or Maven caches in an OBS source tarball.
 
-## Local Verification Record
+## Historical Verification Record
+
+These are earlier observations, not evidence that current release gates pass.
 
 - JDK 21 with Maven JavaFX 21: repository/reminder tests and the opt-in JavaFX
    lifecycle test pass. The UI test exercises editing, actual debounce, drag, resize,
@@ -88,6 +113,6 @@ Do not bundle Java, SQLite JNI binaries, or Maven caches in an OBS source tarbal
    animations, focus, bounds and actual scheduler-to-notify-send delivery.
 - Desktop entry and relaxed AppStream checks validate. Homepage and screenshot
    references are now present; developer identity, online image availability and
-   project licensing must be confirmed before distribution.
+   public release sources must be confirmed before distribution.
 - No OBS upload, Factory submission, performance baseline, or full KDE/GNOME
    session certification has been completed in this workspace.

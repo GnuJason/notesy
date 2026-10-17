@@ -141,17 +141,19 @@ hands-on compositor testing.
 
 `make source-dist` creates `dist/Notesy/` with the source tarball, spec,
 desktop entry, AppStream metadata, and changelog for an OBS package checkout.
-The spec is a draft, **not a Factory-approved release**. A license has not been
-chosen, so its `LicenseRef-UNLICENSED` marker must be replaced with the approved
-SPDX identifier and an accompanying license file before distribution. A real
-developer identity, published screenshot URLs, OBS build and Factory review are
+The project and its original artwork are licensed under **GPL-3.0-or-later**;
+see [LICENSE](LICENSE) and [asset provenance](docs/ARTWORK.md). AppStream metadata
+is separately licensed under CC0-1.0 as declared in the metadata file.
+The spec is a draft, **not a Factory-approved release**. A confirmed
+developer identity, published release source, OBS build and Factory review are
 also release gates. No OBS upload or Factory submission is automated.
 
 The installed Tumbleweed OpenJFX 17.0.20.0-2.1 native libraries also failed local
 startup with unresolved X11/C++ symbols. This must be resolved and the installed
 RPM tested before release. The Maven JavaFX 21 UI tests pass. This branch contains
 the v1.2 visual implementation, not an approved v1.2 release; package versions remain
-unchanged until the platform, performance, licensing and distribution gates pass.
+at the approved version 1.0 until the platform, performance and distribution gates pass.
 
 See [architecture](docs/ARCHITECTURE.md), [maintainer steps](docs/MAINTAINERS.md),
-and the [versioned engineering task list](docs/TASKS.md).
+the [versioned engineering task list](docs/TASKS.md), and the current
+[Factory readiness report](docs/READINESS.md).

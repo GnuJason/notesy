@@ -26,7 +26,8 @@ the corresponding local build and test commands.
 - [ ] QA-01: Complete KDE/GNOME, X11/Wayland and multi-monitor hands-on checks.
 - [ ] QA-02: Verify real desktop notifications, suspend/resume and notification
   failure/retry behavior in an installed RPM session.
-- [ ] LEGAL-01: Approve license, add license file and public upstream identity.
+- [x] LEGAL-01: Approve GPL-3.0-or-later, add LICENSE, declare `%license`, and
+  document project-created artwork. Public upstream identity/publication remains PKG-02.
 - [ ] PKG-02: Build in OBS, inspect RPM with rpmlint, test installed launcher,
   validate production AppStream identity/screenshots, compare reproducible builds.
 - [ ] PKG-03: Resolve the extracted Tumbleweed OpenJFX native-library linkage failure
