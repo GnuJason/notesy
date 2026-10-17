@@ -209,9 +209,10 @@ bulk action without explanation.
 - Keep browser bounds, divider position, maximized state and prior mode in
   per-host session state initially. Restore the selected note's compact bounds
   when returning to Quick Note. Retain existing screen-clamping behavior.
-- Preserve today's startup behavior initially: saved notes reopen as compact
-  notes. Persisting workspace mode/open-window membership is a separate,
-  reviewable behavior change.
+- Cold startup now loads saved notes into one Browser instead of reopening every
+  compact window. An empty collection shows New Note without inserting a blank
+  note. Show all sticky notes remains explicit; workspace mode/open-window
+  membership is not persisted.
 - Reuse the first nonblank content line as the title, with "Blank note" fallback.
   No title column or schema change is necessary.
 - Initially sort newer IDs first for newly created notes and maintain a
@@ -244,7 +245,7 @@ browser implementation is currently ready.
 
 | Route / event | Current behavior | Transitional behavior | Integrated target |
 | --- | --- | --- | --- |
-| Cold normal startup | Restore all saved sticky windows; create one blank note if empty. | Preserve this default. | Same compact default; do not force Notebook on startup. |
+| Cold normal startup | Previously restored all saved sticky windows and created one blank note if empty. | Load saved sessions without opening compact hosts. | Open one Browser; an empty collection shows New Note without creating a note. |
 | Application-menu / normal desktop activation while running | Second process signals showManager(). | Keep explicit activation reaching MainWindow until Browser is ready. | Focus/deiconify an existing Browser/Notebook, or deliberately open Browser with an existing note; empty collection shows New Note. |
 | Second-instance activation | Profile lock and activation request reach showManager(). | Preserve the lock, request delivery and a usable fallback. | Use the same integrated activation entry point; never create another database writer. |
 | `--all-notes` / desktop Open Notesy action | Opens MainWindow. | Preserve CLI/action compatibility. | Open integrated Browser/Notebook; this flag means browse, not show every sticky. |

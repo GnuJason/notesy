@@ -136,6 +136,91 @@ class StickyNoteUiTest {
     }
 
     @Test
+    void startupLoadsEveryNoteIntoOneBrowserWithoutChangingSavedNotes() throws Exception {
+        withManager(fixture -> {
+            var first = fixture.repository().create(Note.blank(100, 110).withContent("First saved note"));
+            var blank = fixture.repository().create(Note.blank(128, 138));
+            var last = fixture.repository().create(Note.blank(400, 250).withContent("Another saved note"));
+            var saved = fixture.repository().findAll();
+            int windows = javafx.stage.Window.getWindows().size();
+
+            fixture.manager().restore();
+
+            var browser = fixture.manager().controller(first.id());
+            assertNotNull(browser);
+            assertEquals(StickyNoteController.Mode.BROWSER, browser.mode());
+            assertTrue(browser.view().stage().isShowing());
+            assertEquals(windows + 1, javafx.stage.Window.getWindows().size());
+            assertFalse(fixture.primary().isShowing());
+            assertEquals(3, browser.view().sidebar().list().getItems().size());
+            assertNull(fixture.manager().controller(blank.id()));
+            assertNull(fixture.manager().controller(last.id()));
+
+            browser.view().sidebar().list().getSelectionModel().select(
+                    browser.view().sidebar().list().getItems().stream()
+                            .filter(session -> session.note().id() == last.id()).findFirst().orElseThrow());
+            assertEquals(last.id(), browser.note().id());
+            assertEquals(last.content(), browser.view().editor().getText());
+            assertEquals(windows + 1, javafx.stage.Window.getWindows().size());
+            fixture.manager().showManager();
+            assertEquals(windows + 1, javafx.stage.Window.getWindows().size());
+            fixture.manager().flush();
+            assertEquals(saved, fixture.repository().findAll());
+
+            fixture.manager().show(first.id());
+            var sticky = fixture.manager().controller(first.id());
+            assertEquals(StickyNoteController.Mode.QUICK, sticky.mode());
+            assertTrue(sticky.view().stage().isShowing());
+            assertEquals(windows + 2, javafx.stage.Window.getWindows().size());
+            assertEquals(StickyNoteController.Mode.BROWSER, browser.mode());
+        });
+    }
+
+    @Test
+    void startupBrowserShowsAllStickiesOnlyOnExplicitRequest() throws Exception {
+        withManager(fixture -> {
+            var first = fixture.repository().create(Note.blank(100, 100));
+            var second = fixture.repository().create(Note.blank(128, 128).withContent("Saved note"));
+            int windows = javafx.stage.Window.getWindows().size();
+            fixture.manager().restore();
+            var browser = fixture.manager().controller(first.id());
+
+            browser.view().showAllItem().fire();
+
+            assertEquals(StickyNoteController.Mode.BROWSER, browser.mode());
+            assertEquals(windows + 3, javafx.stage.Window.getWindows().size());
+            assertEquals(StickyNoteController.Mode.QUICK, fixture.manager().controller(second.id()).mode());
+            browser.view().showAllItem().fire();
+            assertEquals(windows + 3, javafx.stage.Window.getWindows().size());
+            assertEquals(2, fixture.repository().findAll().size());
+        });
+    }
+
+    @Test
+    void emptyProfileStartsInBrowserWithoutCreatingBlankNotes() throws Exception {
+        withManager(fixture -> {
+            int windows = javafx.stage.Window.getWindows().size();
+            fixture.manager().restore();
+            assertTrue(fixture.repository().findAll().isEmpty());
+            assertEquals(windows + 1, javafx.stage.Window.getWindows().size());
+            var window = javafx.stage.Window.getWindows().getLast();
+            var newNote = (Button) window.getScene().lookup("#workspace-new-note");
+            assertNotNull(newNote);
+            assertTrue(newNote.isVisible());
+
+            newNote.fire();
+
+            var saved = fixture.repository().findAll();
+            assertEquals(1, saved.size());
+            var browser = fixture.manager().controller(saved.getFirst().id());
+            assertEquals(StickyNoteController.Mode.BROWSER, browser.mode());
+            assertSame(window, browser.view().stage());
+            assertFalse(browser.view().editor().isDisabled());
+            assertEquals(windows + 1, javafx.stage.Window.getWindows().size());
+        });
+    }
+
+    @Test
     void lightThemePreservesNoteColorAndDefaultOptOut() throws Exception {
         withManager(fixture -> {
             var note = fixture.manager().createNote();

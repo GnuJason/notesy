@@ -57,8 +57,8 @@ public final class NoteManager implements AutoCloseable {
     }
 
     public void restore() {
-        repository.findAll().forEach(note -> openWindow(register(note)));
-        if (sessions.isEmpty()) createNote();
+        repository.findAll().forEach(this::register);
+        showManager();
     }
 
     public StickyNoteController createNote() {
@@ -93,6 +93,10 @@ public final class NoteManager implements AutoCloseable {
     }
 
     private StickyNoteController openWindow(NoteSession session) {
+        return openWindow(session, false);
+    }
+
+    private StickyNoteController openWindow(NoteSession session, boolean browsing) {
         StickyNoteController controller = new StickyNoteController(session);
         windows.add(controller);
         var view = controller.view();
@@ -118,6 +122,7 @@ public final class NoteManager implements AutoCloseable {
         view.deleteItem().setOnAction(event -> confirmDelete(controller));
         view.reminderButton().setOnAction(event -> new ReminderDialog(view.stage(), controller.note().reminderTimestamp())
                 .showAndWait().ifPresent(selection -> controller.setReminder(selection.timestamp())));
+        if (browsing) controller.browse();
         controller.show();
         return controller;
     }
@@ -267,7 +272,7 @@ public final class NoteManager implements AutoCloseable {
     public void showManager() {
         var host = windows.stream().filter(controller -> controller.mode() != StickyNoteController.Mode.QUICK)
                 .findFirst().orElseGet(() -> windows.stream().findFirst().orElseGet(() ->
-                        openWindow(sessions.values().stream().findFirst().orElse(null))));
+                        openWindow(sessions.values().stream().findFirst().orElse(null), true)));
         host.browse();
         host.show();
     }

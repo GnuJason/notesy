@@ -47,7 +47,11 @@ sticky-window creation behavior. Recency is session-only; no timestamp column or
 database migration is introduced.
 
 X saves and hides only its host; it never opens/focuses another window. Minimize
-saves and iconifies only that host. Explicit application activation and
+saves and iconifies only that host. Cold startup registers every saved session
+and opens one Browser, configuring its presentation before showing the stage.
+An empty profile opens an empty Browser without inserting a blank note.
+Startup does not reopen compact hosts or persist their open/hidden membership.
+Explicit application activation and
 `--all-notes` recover integrated browsing, preserving an existing Notebook.
 Show all sticky notes separately reuses or creates compact hosts without changing
 an existing workspace. MainWindow remains available for error reporting and

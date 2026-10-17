@@ -22,6 +22,10 @@ VS Code build, run, test, metadata and archive tasks are in `.vscode/tasks.json`
 
 ## Notes And Reminders
 
+- Startup opens one notes browser with all saved notes in its sidebar, not a
+  separate sticky window for every note. An empty profile shows **New Note**
+  without creating a blank note automatically. Use **Show all sticky notes**
+  to explicitly open every saved note as a compact window.
 - Drag the top strip; resize with the bottom-right grip.
 - Use `+` for another note, the timer icon for a reminder, and the visible pin to
   keep a note on top. The options menu contains color swatches, handwritten fonts,
@@ -107,9 +111,9 @@ grid on drag release. It is not persisted and does not change ordinary free move
 reminder setter. Reminder tooltips include zone/offset information. The dialog's
 **Preview zone** converts the displayed time only: custom dates and times are still
 entered in the system zone, and scheduling is unchanged. The optional desktop
-action **Open Notesy** (`notesy --all-notes`) opens integrated browsing, or restores
-an existing Browser/Notebook workspace,
-after normal startup; it does not add a second lifecycle or bypass the profile lock.
+action **Open Notesy** (`notesy --all-notes`) opens the same single browser on cold
+startup, or restores an existing Browser/Notebook workspace while running.
+It does not show every sticky, add a second lifecycle or bypass the profile lock.
 
 | High-contrast Dark | Textured Paper |
 | --- | --- |
